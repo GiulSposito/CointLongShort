@@ -20,7 +20,7 @@ tickers <- c("QUAL3","RENT3") %>% paste0(".SA")
 # get prices
 prices <- BatchGetSymbols(
   tickers = tickers,  
-  first.date = dmy("10102012"),
+  first.date = dmy("09102012"),
   thresh.bad.data = 0.001
 )
 
@@ -34,7 +34,8 @@ prices$df.tickers %>%
 prices$df.tickers %>% 
   as.tibble() %>% 
   filter(ref.date <= dmy("10102014")) %>% 
-  filter(complete.cases(.)) -> dtset
+  filter(complete.cases(.)) %>% 
+  mutate(price.close = ifelse(ticker=="RENT3.SA", 3*price.close, price.close)) -> dtset
 
 # plot prices
 dtset %>% 
@@ -49,7 +50,7 @@ fitLagModel <- function(dtf){
     mutate( price.lag = lag(price.close,1),
             price.delta = price.close - price.lag ) %>%
     filter( complete.cases(.) ) %>% 
-    lm( price.lag ~ price.delta, . ) %>% 
+    lm( price.delta ~ price.lag, . ) %>% 
     return()
 }
 
@@ -85,3 +86,8 @@ dtset %>%
            adf.eval  = map(adf, tidy),
            df.eval   = map(data, applyDF)) %>% 
   unnest(df.eval)
+
+
+dtset %>%
+  select(ref.date, ticker, price.close) %>% 
+  arrange(ref.date)
