@@ -98,7 +98,8 @@ applyDF <- function(dtf) {
   ) %>% 
     return()
 }
-  
+
+## testes de series !estacionarias
 dtset %>%
   group_by(ticker) %>%
   nest() %>% 
@@ -109,10 +110,29 @@ dtset %>%
            lm.anova  = map(lm.anova, tidy),
            adf       = map(data, applyADF ),
            adf.eval  = map(adf, tidy),
-           df.eval   = map(data, applyDF)) %>% 
-  select(ticker, adf.eval) %>% unnest(adf.eval) %>% arrange(ticker) 
+           df.eval   = map(data, applyDF)) -> stat.test
 
 
-dtset %>%
-  select(ref.date, ticker, price.close) %>% 
-  arrange(ref.date)
+dtset %>% 
+  spread(key=ticker, value=price.close) %>%
+  lm(QUAL3.SA ~ RENT3.SA, .) -> coint
+
+coint %>% anova() %>% tidy()
+coint %>% tidy()
+coint %>% glance()
+
+tibble(
+  y         = dtset %>% spread(ticker, price.close) %>% pull(QUAL3.SA),
+  predicted = coint$fitted.values,
+  residuals = coint$residuals
+) %>% 
+  mutate( lagRes = lag(residuals,1),
+          deltaRes = residuals - lagRes ) %>% 
+  lm(lagRes ~ deltaRes, .) -> coint.lm
+
+coint.lm %>% tidy()
+coint.lm %>% anova() %>% tidy()
+coint.lm %>% glance()
+
+coint.lm$residuals %>% 
+ggplot(aes(x=1:length(.), y=.))
