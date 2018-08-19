@@ -24,18 +24,43 @@ prices <- BatchGetSymbols(
   thresh.bad.data = 0.001
 )
 
+###### excel
+
+library(xlsx)
+
+xls <- read.xlsx("./R/_draft/exemplos-cointegracao-qual3_rent32.xlsx",2) 
+
+xls %>% 
+  as.tibble() %>% 
+  select( ref.date = Data, price.close=QUAL3 ) %>% 
+  filter( complete.cases(.) ) %>% 
+  mutate( ticker="QUAL3.SA",
+          price.close = as.numeric(as.character(price.close)) ) -> qual
+
+xls %>% 
+  as.tibble() %>% 
+  select( ref.date = Data, price.close=RENT3 ) %>% 
+  filter( complete.cases(.) ) %>% 
+  mutate( ticker="RENT3.SA",
+          price.close = as.numeric(as.character(price.close)) ) -> rent
+
+prices <- list(
+  df.tickers = bind_rows(qual,rent)
+)
+
+#######
+
 # oberview
 prices$df.tickers %>% 
   as.tibble() %>% 
   glimpse()
 
 
-# Augmented Dickey-Fuller Test
 prices$df.tickers %>% 
   as.tibble() %>% 
   filter(ref.date <= dmy("10102014")) %>% 
-  filter(complete.cases(.)) %>% 
-  mutate(price.close = ifelse(ticker=="RENT3.SA", 3*price.close, price.close)) -> dtset
+  filter(complete.cases(.)) -> dtset
+  # mutate(price.close = ifelse(ticker=="RENT3.SA", 3*price.close, price.close)) 
 
 # plot prices
 dtset %>% 
@@ -50,7 +75,7 @@ fitLagModel <- function(dtf){
     mutate( price.lag = lag(price.close,1),
             price.delta = price.close - price.lag ) %>%
     filter( complete.cases(.) ) %>% 
-    lm( price.delta ~ price.lag, . ) %>% 
+    lm( price.lag ~ price.delta, . ) %>% 
     return()
 }
 
@@ -85,7 +110,7 @@ dtset %>%
            adf       = map(data, applyADF ),
            adf.eval  = map(adf, tidy),
            df.eval   = map(data, applyDF)) %>% 
-  unnest(df.eval)
+  select(ticker, adf.eval) %>% unnest(adf.eval) %>% arrange(ticker) 
 
 
 dtset %>%
