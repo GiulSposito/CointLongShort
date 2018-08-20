@@ -1,8 +1,9 @@
 ---
-title: "Cointegração"
+title: "Cointegracao"
 output:
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 Este notebook tem o objetivo de reproduzir o passo-a-passo para detectar e avaliar pares de ativos [cointegrados](https://en.wikipedia.org/wiki/Cointegration) mostrado no [blog do Dr. Nickel](https://drnickel.wordpress.com/2015/04/03/long-short-atraves-de-cointegracao-parte-3/). 
