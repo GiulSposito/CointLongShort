@@ -1,9 +1,8 @@
 ---
-title: "Long-Short"
+title: "Cointegração"
 output:
   html_document:
     df_print: paged
-    code_folding: hide
 ---
 
 Este notebook tem o objetivo de reproduzir o passo-a-passo para detectar e avaliar pares de ativos [cointegrados](https://en.wikipedia.org/wiki/Cointegration) mostrado no [blog do Dr. Nickel](https://drnickel.wordpress.com/2015/04/03/long-short-atraves-de-cointegracao-parte-3/). 
@@ -17,7 +16,7 @@ Para garantir que os resultados batam, vamos usar os mesmos dados usado na plani
 ![](./img/excel_data.png)
 
 
-```{r loadData, message=FALSE, warning=FALSE, cache=TRUE}
+```{r loadData, message=FALSE, warning=FALSE}
 # datahandlers
 library(tidyverse)
 library(lubridate)
@@ -32,7 +31,7 @@ glimpse(xls)
 
 Vamos ajustar (tidying) o dataset para deixar como uma tabela: ticker, data, valor.
 
-```{r tidyingTickers, cache=TRUE}
+```{r tidyingTickers}
 # cleaning up (tidying)
 # separa os dados da QUAL3
 xls %>% 
@@ -58,13 +57,14 @@ df.tickers = bind_rows(qual,rent)
 library(knitr)
 library(kableExtra)
 df.tickers %>% 
+  arrange(ref.date) %>% 
   head(10) %>% 
   kable() %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 
 ```
 
-```{r cleanMemory, echo=FALSE, message=FALSE, warning=FALSE}
+```{r cleanMemory, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
 rm(xls, qual, rent);gc()
 ```
 
@@ -72,9 +72,72 @@ Com o dataset mais organizado, vamo visualizar os preços dos ativos importados
 
 ```{r tickersPlot}
 ## plot as line
-df.tickers %>% 
-  ggplot(aes(x=ref.date, y=price.close, color=ticker)) +
+library(ggplot2)
+ggplot(df.tickers,aes(x=ref.date, y=price.close, color=ticker)) +
   geom_line(size=1) + theme_light()
+
+```
+
+## Séries Não Estacionárias
+
+O próximo passo e avaliar se ambas as séries são não estacionárias, para isso faz-se uma teste de [Dicker-Fuller](https://en.wikipedia.org/wiki/Dickey%E2%80%93Fuller_test):
+
+```{r dickerFuller}
+
+# fit a LM model with one day delta price
+fitLagModel <- function(dtf){
+
+  # pega os datasets de precos de um ticker
+  dtf %>% 
+    select( price.close ) %>% # so interessa o preco de fechametno
+    mutate( price.lag = lag(price.close,1), # cria um "lag" de um dia
+            price.delta = price.close - price.lag ) %>%  # delta entre fechamento e lag
+    filter( complete.cases(.) ) %>% # elimina valores vazios
+    lm( price.lag ~ price.delta, . ) %>% # fita o modelo
+    return()
+}
+
+## testes de series estacionarias
+## para cada ticker fita o modelo linear
+## tidyfica alguns parametros do modelo
+library(broom)
+df.tickers %>%
+  group_by(ticker) %>%
+  nest() %>% 
+  mutate ( lagModel = map(data, fitLagModel),
+           lm.coefs  = map(lagModel,tidy),  
+           lm.glance = map(lagModel, glance),
+           lm.anova  = map(lagModel, anova),
+           lm.anova  = map(lm.anova, tidy)) -> stat.test
+
+stat.test 
+```
+
+Então para cada um dos ticker, temos um dataset com as cotações, o modelo fitado, dados dos coeficientes, análise de variação e qualidade do fit. Vamos olhar cada uma das séries
+
+```{r fitQuality}
+stat.test %>% 
+  select(ticker, lm.glance) %>% 
+  unnest(lm.glance) %>% 
+  kable(caption = "Qualidade da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r fitAnova}
+stat.test %>% 
+  select(ticker, lm.anova) %>% 
+  unnest(lm.anova) %>% 
+  kable(caption= "Análise de variação") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r fitCoefs}
+stat.test %>% 
+  select(ticker, lm.coefs) %>% 
+  unnest(lm.coefs) %>% 
+  kable(cpation="Coeficientes da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+  
 
 ```
 
