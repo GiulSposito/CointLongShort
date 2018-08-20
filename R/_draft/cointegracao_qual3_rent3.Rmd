@@ -1,0 +1,57 @@
+---
+title: "Long-Short"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+Este notebook tem o objetivo de reproduzir o passo-a-passo para detectar e avaliar pares de ativos [cointegrados](https://en.wikipedia.org/wiki/Cointegration) mostrado no [blog do Dr. Nickel](https://drnickel.wordpress.com/2015/04/03/long-short-atraves-de-cointegracao-parte-3/). 
+
+No poste ele faz faz uma análise dos ativos QUAL3 e RENT3 usando uma [planilha excel](https://drnickel.files.wordpress.com/2015/04/exemplos-cointegracao-qual3_rent32.xlsx), neste notebook refaço o procedimento usando R.
+
+## Dataset
+
+Para garantir que os resultados batam, vamos usar os mesmos dados usado na planilha.
+
+![Dados Excel](./img/excel_data.png)
+
+
+```{r}
+# datahandlers
+library(tidyverse)
+library(lubridate)
+
+# loading data
+library(xlsx)
+xls <- read.xlsx("./exemplos-cointegracao-qual3_rent32.xlsx",2) 
+
+# the dataset read is a mess
+glimpse(xls)
+
+# cleaning up (tidying)
+# separa os dados da QUAL3
+xls %>% 
+  as.tibble() %>% 
+  select( ref.date = Data, price.close=QUAL3 ) %>% 
+  filter( complete.cases(.) ) %>% 
+  mutate( ticker="QUAL3.SA",
+          price.close = as.numeric(as.character(price.close)) ) -> qual
+
+
+# separa os dados da RENT3
+xls %>% 
+  as.tibble() %>% 
+  select( ref.date = Data, price.close=RENT3 ) %>% 
+  filter( complete.cases(.) ) %>% 
+  mutate( ticker="RENT3.SA",
+          price.close = as.numeric(as.character(price.close)) ) -> rent
+
+# bind them
+df.tickers = bind_rows(qual,rent)
+
+# much better
+glimpse(df.tickers)
+
+```
+
