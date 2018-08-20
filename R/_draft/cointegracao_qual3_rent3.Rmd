@@ -166,3 +166,187 @@ coefs %>%
 
 Para QUAL3 encontramos o valor de **`r round(coefs[coefs$ticker=="QUAL3.SA", "statistic"]$statistic,3)`** e para RENT3 encontramos **`r round(coefs[coefs$ticker=="RENT3.SA", "statistic"]$statistic,3)`** para ~500 amostras. Ambos os valores estão abaixo (em módulo) dos valores de referência na tabela Dickey-Fuller, mostrando que ambas as séries são "não-estacionárias".
 
+## Cointegração QUAL3 ~ RENT3
+
+Como as duas séries são não estacionárias, elas estarão cointegradas se uma combinação linear entre as duas apresentar um comportamento estacionário. Para tal, faze-se uma composição de ativos e então aplica-se o teste Dickey-Fuller nos resíduos a vim de (neste momento) verificar a estacionaridade.
+
+```{r cointegradion}
+# faz a composicao para detectar a cointegração
+# fitando um modelo de um ativo contra outro
+df.tickers %>% 
+  spread(key=ticker, value=price.close) %>%
+  lm(QUAL3.SA ~ RENT3.SA, .) -> coint
+
+# avalia valores obtidos no modelo
+coint %>%
+  glance() %>% 
+  kable(caption = "Qualidade da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r cointAnova}
+coint %>%
+  anova() %>%
+  tidy() %>%  
+  kable(caption = "Análise de Variacao") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+```{r cointCoefs}
+coint %>% 
+  tidy() %>%  
+  kable(caption = "Coeficientes da Regressao") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+  
+
+
+
+
+```{r cointDF}
+# monta um dataset para avaliar os residuos
+df.tickers %>%
+  filter( ticker=="QUAL3.SA" ) %>% 
+  select(ticker, ref.date, price.close) %>% 
+  bind_cols(
+    tibble(
+      predicted = coint$fitted.values,
+      residuals = coint$residuals
+    )    
+  ) %>% 
+  mutate( lagRes = lag(residuals,1),
+          deltaRes = residuals - lagRes ) -> coint.ds
+
+coint.ds %>% 
+  head(10) %>% 
+  kable(caption = "Preparacao dos Resíduos para fazer teste Dickey-Fuller") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+```{r resDF}
+# fit dos residuos
+coint.ds %>% 
+  lm(lagRes ~ deltaRes, .) -> coint.lm
+```
+
+
+```{r resGlance}
+# avalia valores obtidos no modelo
+coint.lm %>%
+  glance() %>% 
+  kable(caption = "Qualidade da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r resAnova}
+coint.lm %>%
+  anova() %>%
+  tidy() %>%  
+  kable(caption = "Análise de Variacao") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r resCoef}
+coint.lm %>% 
+  tidy() %>%  
+  kable(caption = "Coeficientes da Regressao") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+tstat <- coint.lm %>% tidy %>% filter(term=="deltaRes") %>% pull(statistic)
+```
+
+Desta vez, o t-stat obtido foi de **`r round(tstat,3)`**, muito além (em módulo) dos valores para a tabela de significância para 500 ou mais amostras. Neste confirmando que a hipótese de que a série é estacionária, e portanto os pares estão cointegrados.
+
+### Spread
+
+O spread entre os ativos pode ser visualizado pelos resíduos da combinação linear:
+
+```{r spreadPlot}
+# plot
+
+# banda +/- 2 SD
+sd.res <- sd(coint.ds$residuals)
+
+# residuos e banda
+coint.ds %>% 
+  ggplot(aes(x=ref.date, y=residuals)) + 
+  geom_line(color="blue",size=1) +
+  geom_hline(yintercept =  2*sd.res, color="red", linetype=2) +
+  geom_hline(yintercept = -2*sd.res, color="red", linetype=2) +
+  theme_light()
+```
+
+## Trading
+
+O gráfico acima apresenta a evolução do spread ao longo do tempo, com duas bandas representando -2 e 2 vezes o desvio padrão dos resíduos. Vemos que, apesar de os resíduos apresentarem certa persistência, comportam-se de maneira aparentemente desejável: flutuam razoavelmente ao redor da média, visitando-a com certa frequência. Uma regra possível de operação consistiria em vender o par quando o resíduo estiver acima da banda, e comprar o par quando estiver abaixo da banda. O trade pode ser encerrado quando o par voltar a média ou a um percentual qualquer da média.
+
+### Detectando Operações
+
+Seguindo a estratégia acima, usamos as transições de banda e pela média para detectar os pontos de entrada e saída de operações long e short.
+
+```{r startOperations}
+
+coint.ds %>% 
+  mutate(operation=case_when(
+    lagRes < 2*sd.res & residuals >= 2*sd.res   ~ "short_start",
+    lagRes > 0 & residuals<=0                   ~ "short_stop"
+  )) %>%
+  filter( !is.na(operation) ) %>% 
+  mutate( operation.lag = lag(operation,1) ) %>% 
+  select( ref.date, residuals, lagRes, operation, operation.lag ) %>% 
+  filter( operation!=operation.lag ) %>% 
+  select( -operation.lag) -> ops.short
+
+
+coint.ds %>% 
+  mutate(operation=case_when(
+    lagRes > -2*sd.res & residuals <= -2*sd.res ~ "long_start",
+    lagRes < 0 & residuals>=0               ~ "long_stop"
+  )) %>%
+  filter( !is.na(operation) ) %>% 
+  mutate( operation.lag = lag(operation,1) ) %>% 
+  select( ref.date, residuals, lagRes, operation, operation.lag ) %>% 
+  filter( operation!=operation.lag ) %>% 
+  select( -operation.lag) -> ops.long
+
+operations <- bind_rows(ops.short, ops.long)
+
+
+# residuos e banda
+coint.ds %>% 
+  ggplot(aes(x=ref.date, y=residuals)) + 
+  geom_line(color="blue",size=1) +
+  geom_hline(yintercept =  2*sd.res, color="red", linetype=2) +
+  geom_hline(yintercept =  0, color="green", linetype=2) +
+  geom_hline(yintercept = -2*sd.res, color="red", linetype=2) +
+  geom_vline(data=operations, 
+             mapping=aes(xintercept = ref.date, color=operation),
+             size=1, linetype=1) +
+  theme_light()
+```
+
+### Tabela de operações
+
+```{r ops}
+
+operations %>% 
+  arrange(ref.date) %>% 
+  mutate( opLag = lead(operation, 1),
+          open=ref.date,
+          close = lead(ref.date,1) ) %>% 
+  filter( (operation=="short_start" & opLag=="short_stop") |
+          (operation=="long_start" & opLag=="long_stop") ) %>% 
+  select(-ref.date, -residuals, -lagRes, -opLag) %>% 
+  mutate( operation=case_when(
+    operation=="short_start" ~ "short",
+    operation=="long_start"  ~ "long"
+  ) ) -> operations
+
+operations %>%  
+  kable(caption = "Operacoes Cointegradas") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
