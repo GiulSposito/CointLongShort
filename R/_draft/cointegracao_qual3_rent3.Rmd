@@ -14,10 +14,10 @@ No poste ele faz faz uma análise dos ativos QUAL3 e RENT3 usando uma [planilha 
 
 Para garantir que os resultados batam, vamos usar os mesmos dados usado na planilha.
 
-![Dados Excel](./img/excel_data.png)
+![](./img/excel_data.png)
 
 
-```{r}
+```{r loadData, message=FALSE, warning=FALSE, cache=TRUE}
 # datahandlers
 library(tidyverse)
 library(lubridate)
@@ -28,7 +28,11 @@ xls <- read.xlsx("./exemplos-cointegracao-qual3_rent32.xlsx",2)
 
 # the dataset read is a mess
 glimpse(xls)
+```
 
+Vamos ajustar (tidying) o dataset para deixar como uma tabela: ticker, data, valor.
+
+```{r tidyingTickers, cache=TRUE}
 # cleaning up (tidying)
 # separa os dados da QUAL3
 xls %>% 
@@ -51,7 +55,26 @@ xls %>%
 df.tickers = bind_rows(qual,rent)
 
 # much better
-glimpse(df.tickers)
+library(knitr)
+library(kableExtra)
+df.tickers %>% 
+  head(10) %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+```{r cleanMemory, echo=FALSE, message=FALSE, warning=FALSE}
+rm(xls, qual, rent);gc()
+```
+
+Com o dataset mais organizado, vamo visualizar os preços dos ativos importados
+
+```{r tickersPlot}
+## plot as line
+df.tickers %>% 
+  ggplot(aes(x=ref.date, y=price.close, color=ticker)) +
+  geom_line(size=1) + theme_light()
 
 ```
 
