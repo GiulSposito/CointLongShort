@@ -80,9 +80,9 @@ ggplot(df.tickers,aes(x=ref.date, y=price.close, color=ticker)) +
 
 ## Séries Não Estacionárias
 
-O próximo passo e avaliar se ambas as séries são não estacionárias, para isso faz-se uma teste de [Dicker-Fuller](https://en.wikipedia.org/wiki/Dickey%E2%80%93Fuller_test):
+O próximo passo e avaliar se ambas as séries são não estacionárias, para isso faz-se uma teste de [Dickey-Fuller](https://en.wikipedia.org/wiki/Dickey%E2%80%93Fuller_test):
 
-```{r dickerFuller}
+```{r DickeyFuller}
 
 # fit a LM model with one day delta price
 fitLagModel <- function(dtf){
@@ -129,6 +129,7 @@ stat.test %>%
   unnest(lm.anova) %>% 
   kable(caption= "Análise de variação") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
+
 ```
 
 ```{r fitCoefs}
@@ -140,4 +141,28 @@ stat.test %>%
   
 
 ```
+
+## Avaliacao de Estacionaridade
+
+Basicamente o teste de Dickey-Fuller pede para avalir se o t-statistics dos coeficentes contrados na regressão então dentro de certos valores em função das amostras utilizadas, seguindo a tabela:
+
+![Dickey-Fuller Table](./img/dickey-fuller-table.png)
+
+```{r tstats}
+
+stat.test %>% 
+  select(ticker, lm.coefs) %>% 
+  unnest(lm.coefs) %>% 
+  select(ticker, term, estimate, statistic, p.value) %>%
+  filter( term!="(Intercept)" ) %>% 
+  select(-term) %>% 
+  inner_join( count(df.tickers , ticker), by="ticker") -> coefs
+
+coefs %>% 
+  kable(cpation="Coeficientes da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+Para QUAL3 encontramos o valor de **`r round(coefs[coefs$ticker=="QUAL3.SA", "statistic"]$statistic,3)`** e para RENT3 encontramos **`r round(coefs[coefs$ticker=="RENT3.SA", "statistic"]$statistic,3)`** para ~500 amostras. Ambos os valores estão abaixo (em módulo) dos valores de referência na tabela Dickey-Fuller, mostrando que ambas as séries são "não-estacionárias".
 
