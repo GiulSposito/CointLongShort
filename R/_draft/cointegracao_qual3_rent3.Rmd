@@ -343,11 +343,60 @@ operations %>%
   mutate( operation=case_when(
     operation=="short_start" ~ "short",
     operation=="long_start"  ~ "long"
-  ) ) -> operations
+  ) ) %>% 
+  mutate( life.span = round(lubridate::interval(open, close)/days(1)) )-> operations
 
 operations %>%  
   kable(caption = "Operacoes Cointegradas") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+Com a tabela de operações, podemos simular os ganhos de operação, lembrando que quando o par é vendido abre-se simultaneamente uma posição vendida na primeira ação e comprada na segunda ação e a operação oposta é realizada quando o par é comprado.
+
+Neste sentido vamos recuperar os valores da cotação de QUAL3 e RENT3 nas datas de abertura e fechamento de operações.
+
+```{r}
+operations %>%
+  select( open ) %>% 
+  inner_join(df.tickers, by=c("open"="ref.date")) %>% 
+  spread(key = ticker, value=price.close) %>% 
+  set_names(c("open","QUAL3.SA.OPEN","RENT3.SA.OPEN")) -> prices.open
+
+operations %>%
+  select( close ) %>% 
+  inner_join(df.tickers, by=c("close"="ref.date")) %>% 
+  spread(key = ticker, value=price.close) %>% 
+  set_names(c("close","QUAL3.SA.CLOSE","RENT3.SA.CLOSE")) -> prices.close
+
+operations %>%
+  inner_join(prices.open, by="open") %>% 
+  inner_join(prices.close, by="close") -> op.results
+
+op.results %>% 
+  kable(caption = "Cotações do par integrado") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+Com as cotações na mão vamos simular uma operação cointegrada com cash neutro, ou seja, o volume financeiro comprado é o mesmo valor vendido.
+
+```{r cashNeutro}
+
+op.results %>% 
+  mutate( vol.qual3 = round(1000/QUAL3.SA.OPEN),
+          vol.rent3 = round(1000/RENT3.SA.OPEN) ) %>% 
+  mutate( entrada = case_when(
+    operation == "short" ~ round(vol.qual3*QUAL3.SA.OPEN-vol.rent3*RENT3.SA.OPEN,2),
+    operation == "long"  ~ round(vol.rent3*RENT3.SA.OPEN-vol.qual3*QUAL3.SA.OPEN,2)
+  )) %>% 
+  mutate( saida = case_when(
+    operation == "short" ~ round(vol.rent3*RENT3.SA.CLOSE-vol.qual3*QUAL3.SA.CLOSE,2),
+    operation == "long"  ~ round(vol.qual3*QUAL3.SA.CLOSE-vol.rent3*RENT3.SA.CLOSE,2)
+  )) %>% 
+  mutate(
+    returno = (saida-entrada)/2000
+  )
+  
 
 ```
 
