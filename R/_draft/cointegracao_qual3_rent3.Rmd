@@ -289,10 +289,13 @@ Seguindo a estratégia acima, usamos as transições de banda e pela média para
 
 ```{r startOperations}
 
+startPar <- 1.75 ##2*sd.res
+closePar <- 0.5 
+
 coint.ds %>% 
   mutate(operation=case_when(
-    lagRes < 2*sd.res & residuals >= 2*sd.res   ~ "short_start",
-    lagRes > 0 & residuals<=0                   ~ "short_stop"
+    lagRes < startPar & residuals >= startPar   ~ "short_start",
+    lagRes > closePar & residuals <= closePar    ~ "short_stop"
   )) %>%
   filter( !is.na(operation) ) %>% 
   mutate( operation.lag = lag(operation,1) ) %>% 
@@ -303,8 +306,8 @@ coint.ds %>%
 
 coint.ds %>% 
   mutate(operation=case_when(
-    lagRes > -2*sd.res & residuals <= -2*sd.res ~ "long_start",
-    lagRes < 0 & residuals>=0               ~ "long_stop"
+    lagRes > -startPar & residuals <= -startPar ~ "long_start",
+    lagRes < -closePar & residuals >= -closePar ~ "long_stop"
   )) %>%
   filter( !is.na(operation) ) %>% 
   mutate( operation.lag = lag(operation,1) ) %>% 
@@ -318,10 +321,11 @@ operations <- bind_rows(ops.short, ops.long)
 # residuos e banda
 coint.ds %>% 
   ggplot(aes(x=ref.date, y=residuals)) + 
-  geom_line(color="blue",size=1) +
-  geom_hline(yintercept =  2*sd.res, color="red", linetype=2) +
-  geom_hline(yintercept =  0, color="green", linetype=2) +
-  geom_hline(yintercept = -2*sd.res, color="red", linetype=2) +
+  geom_line(color="blue",size=1, alpha=0.5) +
+  geom_hline(yintercept =  startPar, color="red", linetype=2) +
+  geom_hline(yintercept =  closePar, color="blue", linetype=2) +
+  geom_hline(yintercept = -closePar, color="blue", linetype=2) +
+  geom_hline(yintercept = -startPar, color="red", linetype=2) +
   geom_vline(data=operations, 
              mapping=aes(xintercept = ref.date, color=operation),
              size=1, linetype=1) +
@@ -380,6 +384,29 @@ op.results %>%
 
 Com as cotações na mão vamos simular uma operação cointegrada com cash neutro, ou seja, o volume financeiro comprado é o mesmo valor vendido.
 
+### plot das operacoes
+
+```{r}
+
+ggplot() +
+  geom_line(data=df.tickers, 
+            aes(x=ref.date, y=price.close, color=ticker),size=1) +
+  geom_rect(data=op.results,
+            aes(xmin=open, ymin=QUAL3.SA.OPEN,
+                xmax=close, ymax=QUAL3.SA.CLOSE,
+                fill=ifelse(QUAL3.SA.OPEN<QUAL3.SA.CLOSE,"green","purple")),
+                alpha=0.35, show.legend = F) +
+    geom_rect(data=op.results,
+            aes(xmin=open, ymin=RENT3.SA.OPEN,
+                xmax=close, ymax=RENT3.SA.CLOSE,
+                fill=ifelse(RENT3.SA.OPEN<RENT3.SA.CLOSE,"green","purple")),
+                alpha=0.35, show.legend = F) +
+  theme_light() 
+
+
+```
+
+
 ```{r cashNeutro}
 
 op.results %>% 
@@ -394,8 +421,25 @@ op.results %>%
     operation == "long"  ~ round(vol.qual3*QUAL3.SA.CLOSE-vol.rent3*RENT3.SA.CLOSE,2)
   )) %>% 
   mutate(
-    returno = (saida-entrada)/2000
-  )
+    retorno = (saida-entrada)/2000
+  ) -> results
+
+results %>% 
+  select(operation, open, close, entrada, saida, retorno) %>% 
+  kable(caption = "Retorno obtido") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+  
+
+```
+
+```{r totalResult}
+
+results %>% 
+  summarise( saldoEntrada = sum(entrada,na.rm = T),
+             saldoSaida   = sum(saida,na.rm = T)) %>% 
+  t() %>% 
+  kable(caption="Resultado") %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F)
   
 
 ```
