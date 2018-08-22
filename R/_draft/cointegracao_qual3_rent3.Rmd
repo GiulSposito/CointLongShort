@@ -3,6 +3,7 @@ title: "Cointegracao"
 output:
   html_document:
     df_print: paged
+    keep_md: yes
   pdf_document: default
 ---
 
@@ -137,7 +138,7 @@ stat.test %>%
 stat.test %>% 
   select(ticker, lm.coefs) %>% 
   unnest(lm.coefs) %>% 
-  kable(cpation="Coeficientes da regressão") %>%
+  kable(caption="Coeficientes da regressão") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
   
 
@@ -160,7 +161,7 @@ stat.test %>%
   inner_join( count(df.tickers , ticker), by="ticker") -> coefs
 
 coefs %>% 
-  kable(cpation="Coeficientes da regressão") %>%
+  kable(caption="Coeficientes da regressão") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 
 ```
@@ -180,7 +181,26 @@ stat.test %>%
   unnest() %>% 
   select(ticker, statistic, p.value) %>% 
   mutate( hypothesis=ifelse(p.value>=0.05,"non-stationary","stationary")) %>% 
-  kable(cpation="ADF.TEST - Residuals of each ticker") %>%
+  kable(caption="ADF.TEST - Residuals of each ticker") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+
+df.tickers %>% 
+  arrange(ref.date) %>%
+  filter(complete.cases(.)) %>%
+  group_by(ticker) %>% 
+  nest() %>% 
+  mutate(adf=map(data, function(df){
+    df %>% 
+      pull(price.close) %>% 
+      adf.test() %>% 
+      tidy() %>% 
+      select(statistic, p.value) %>%
+      mutate( hypothesis=ifelse(p.value>=0.05,"non-stationary","stationary"))  
+  })) %>% 
+  select(ticker,adf) %>% 
+  unnest() %>% 
+  kable(caption="ADF.TEST - On each ticker price.close") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 
 ```
@@ -287,7 +307,17 @@ coint.lm$residuals %>%
   tidy() %>% 
   select(statistic, p.value) %>% 
   mutate( hypothesis=ifelse(p.value>=0.05,"(Ha): Non-Stationary","(H0): Stationary")) %>% 
-  kable(cpation="ADF.TEST - Residuals of Cointegration") %>%
+  kable(caption="ADF.TEST - Residuals of Cointegration") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+
+# dickey fuller using adf.test on compisition
+coint.lm$fitted.values %>% 
+  adf.test(k=1) %>% 
+  tidy() %>% 
+  select(statistic, p.value) %>% 
+  mutate( hypothesis=ifelse(p.value>=0.05,"(Ha): Non-Stationary","(H0): Stationary")) %>% 
+  kable(caption="ADF.TEST - Composition of Cointegration Pair") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 
 ```
