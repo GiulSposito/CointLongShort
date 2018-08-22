@@ -167,6 +167,24 @@ coefs %>%
 
 Para QUAL3 encontramos o valor de **`r round(coefs[coefs$ticker=="QUAL3.SA", "statistic"]$statistic,3)`** e para RENT3 encontramos **`r round(coefs[coefs$ticker=="RENT3.SA", "statistic"]$statistic,3)`** para ~500 amostras. Ambos os valores estão abaixo (em módulo) dos valores de referência na tabela Dickey-Fuller, mostrando que ambas as séries são "não-estacionárias".
 
+### Testes de Estacionaridade usando outras funções
+
+```{r otherTests, warning=FALSE, message=FALSE}
+
+library(tseries)
+# dickey fuller using adf.test
+stat.test %>% 
+  mutate( adf = map(lagModel, function(m){ adf.test(m$residuals,k=1) }) ) %>% 
+  mutate( adf.htest = map(adf,tidy) ) %>% 
+  select( ticker, adf.htest ) %>% 
+  unnest() %>% 
+  select(ticker, statistic, p.value) %>% 
+  mutate( hypothesis=ifelse(p.value>=0.05,"non-stationary","stationary")) %>% 
+  kable(cpation="ADF.TEST - Residuals of each ticker") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
 ## Cointegração QUAL3 ~ RENT3
 
 Como as duas séries são não estacionárias, elas estarão cointegradas se uma combinação linear entre as duas apresentar um comportamento estacionário. Para tal, faze-se uma composição de ativos e então aplica-se o teste Dickey-Fuller nos resíduos a vim de (neste momento) verificar a estacionaridade.
@@ -260,6 +278,21 @@ tstat <- coint.lm %>% tidy %>% filter(term=="deltaRes") %>% pull(statistic)
 
 Desta vez, o t-stat obtido foi de **`r round(tstat,3)`**, muito além (em módulo) dos valores para a tabela de significância para 500 ou mais amostras. Neste confirmando que a hipótese de que a série é estacionária, e portanto os pares estão cointegrados.
 
+
+```{r otherTestCoint, warning=FALSE, message=FALSE}
+
+# dickey fuller using adf.test
+coint.lm$residuals %>% 
+  adf.test(k=1) %>% 
+  tidy() %>% 
+  select(statistic, p.value) %>% 
+  mutate( hypothesis=ifelse(p.value>=0.05,"(Ha): Non-Stationary","(H0): Stationary")) %>% 
+  kable(cpation="ADF.TEST - Residuals of Cointegration") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+
 ### Spread
 
 O spread entre os ativos pode ser visualizado pelos resíduos da combinação linear:
@@ -289,8 +322,8 @@ Seguindo a estratégia acima, usamos as transições de banda e pela média para
 
 ```{r startOperations}
 
-startPar <- 1.75 ##2*sd.res
-closePar <- 0.5 
+startPar <- 2*sd.res
+closePar <- 0
 
 coint.ds %>% 
   mutate(operation=case_when(
