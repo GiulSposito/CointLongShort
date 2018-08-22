@@ -329,11 +329,12 @@ stat.test %>%
 stat.test %>% 
   select(ticker, lm.coefs) %>% 
   unnest(lm.coefs) %>% 
-  kable(cpation="Coeficientes da regressão") %>%
+  kable(caption="Coeficientes da regressão") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 <table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Coeficientes da regressão</caption>
  <thead>
   <tr>
    <th style="text-align:left;"> ticker </th>
@@ -397,11 +398,12 @@ stat.test %>%
   inner_join( count(df.tickers , ticker), by="ticker") -> coefs
 
 coefs %>% 
-  kable(cpation="Coeficientes da regressão") %>%
+  kable(caption="Coeficientes da regressão") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 <table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Coeficientes da regressão</caption>
  <thead>
   <tr>
    <th style="text-align:left;"> ticker </th>
@@ -444,11 +446,12 @@ stat.test %>%
   unnest() %>% 
   select(ticker, statistic, p.value) %>% 
   mutate( hypothesis=ifelse(p.value>=0.05,"non-stationary","stationary")) %>% 
-  kable(cpation="ADF.TEST - Residuals of each ticker") %>%
+  kable(caption="ADF.TEST - Residuals of each ticker") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 <table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>ADF.TEST - Residuals of each ticker</caption>
  <thead>
   <tr>
    <th style="text-align:left;"> ticker </th>
@@ -489,11 +492,12 @@ df.tickers %>%
   })) %>% 
   select(ticker,adf) %>% 
   unnest() %>% 
-  kable(cpation="ADF.TEST - On each ticker price.close") %>%
+  kable(caption="ADF.TEST - On each ticker price.close") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 <table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>ADF.TEST - On each ticker price.close</caption>
  <thead>
   <tr>
    <th style="text-align:left;"> ticker </th>
@@ -929,11 +933,12 @@ coint.lm$residuals %>%
   tidy() %>% 
   select(statistic, p.value) %>% 
   mutate( hypothesis=ifelse(p.value>=0.05,"(Ha): Non-Stationary","(H0): Stationary")) %>% 
-  kable(cpation="ADF.TEST - Residuals of Cointegration") %>%
+  kable(caption="ADF.TEST - Residuals of Cointegration") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 <table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>ADF.TEST - Residuals of Cointegration</caption>
  <thead>
   <tr>
    <th style="text-align:right;"> statistic </th>
@@ -957,11 +962,12 @@ coint.lm$fitted.values %>%
   tidy() %>% 
   select(statistic, p.value) %>% 
   mutate( hypothesis=ifelse(p.value>=0.05,"(Ha): Non-Stationary","(H0): Stationary")) %>% 
-  kable(cpation="ADF.TEST - Composition of Cointegration Pair") %>%
+  kable(caption="ADF.TEST - Composition of Cointegration Pair") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 <table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>ADF.TEST - Composition of Cointegration Pair</caption>
  <thead>
   <tr>
    <th style="text-align:right;"> statistic </th>
