@@ -68,7 +68,7 @@ xls %>%
 ```
 
 Como o Excel não está adequadamente formatado (há células colapsadas e colunas vazias entre os dados) e acabamos com um dado importado muito sujo, há necessidade de limpar, *tipar* e arrumar 
-[data tidying](http://r4ds.had.co.nz/tidy.html), deixando-os simples de manipular.
+[(data tidying)](http://r4ds.had.co.nz/tidy.html), deixando-os simples de manipular.
 
 ```{r tidyingTickers}
 
@@ -121,38 +121,267 @@ ggplot(df.tickers,aes(x=ref.date, y=price.close, color=ticker)) +
 
 O primeiro passo é testar se cada uma das séries é não-estacionária, aplicando o teste [Dickey-Fuller](https://en.wikipedia.org/wiki/Dickey%E2%80%93Fuller_test) em cada série de preços. A hipótese nula do teste DF é que a série é não-estacionária, portanto neste primeiro teste queremos que a hipótese nula não seja rejeitada.
 
-Para aplicar o teste DF, precisamos primeiro calcular os valores defasados (_lags_) de cada série e o _delta_ (diferença entre o preço do dia e o preço do dia anterior) e após isto fazer regressão do _delta_ em função do _lag_:
+Para aplicar o teste DF, precisamos primeiro calcular os valores defasados (`lags`) de cada série e o `delta` (diferença entre o preço do dia e o preço do dia anterior) e após isto fazer regressão do `delta` em função do `lag`:
 
 $$\Delta P_{t} = \alpha + \beta P_{t-1} + \epsilon$$
 
-Calculo do Lag e Delta
+Após fazer a regressão, o valor chave a ser usado para determinar se a série é não estacionária é o [`t-statistic`](https://dss.princeton.edu/online_help/analysis/interpreting_regression.htm) do coeficente $\beta$ obtido, que é o valor do coeficiente dividido pelo desvio padrão. Pode ser pensado como uma medida da precisão com que o coeficiente de regressão é medido. Se um coeficiente é grande comparado ao seu erro padrão, provavelmente é diferente de 0. Esse valor então é confrontado contra uma tabela de referência, que determinará se a série é estacionária ou não. 
 
-```{r exemploLag}
+![Dickey-Fuller Table](./img/dickey-fuller-table.png)
 
-# thake the QUAL3 price.close and calc the delta and the lag
-df.tickers %>% 
-  filter(ticker=="QUAL3") %>% 
-  select( price.close ) %>% 
-  mutate( price.lag = lag(price.close,1),
-          price.delta = price.close - price.lag ) -> lagData
+O valor de referência é sensível ao número de pontos usados na regressão. Assim sendo, vamos fazer o fit da regressão linear e obter os valores de referência desta regressão
 
-# shows data
-lagData %>% 
-  head(10) %>% 
-  kable(caption="Dados com Lag e Delta de Preço") %>%
+```{r DickeyFuller}
+
+# fit a LM model with one day delta price
+fitLagModel <- function(dtf){
+
+  # pega os datasets de precos de um ticker
+  dtf %>% 
+    select( price.close ) %>% # so interessa o preco de fechametno
+    mutate( price.lag = lag(price.close,1), # cria um "lag" de um dia
+            price.delta = price.close - price.lag ) %>%  # delta entre fechamento e lag
+    filter( complete.cases(.) ) %>% # elimina valores vazios
+    lm( price.lag ~ price.delta, . ) %>% # fita o modelo
+    return()
+}
+
+## testes de series estacionarias
+## para cada ticker fita o modelo linear
+## tidyfica alguns parametros do modelo
+library(broom)
+df.tickers %>%
+  group_by(ticker) %>%
+  nest() %>% 
+  mutate ( lagModel = map(data, fitLagModel), 
+           lm.coefs  = map(lagModel,tidy),  
+           lm.glance = map(lagModel, glance),
+           lm.anova  = map(lagModel, anova),
+           lm.anova  = map(lm.anova, tidy)) -> stat.test
+```
+
+Então para cada um dos ticker, temos um dataset com as cotações, o modelo fitado, dados dos coeficientes, análise de variação e qualidade do fit. Vamos olhar o valor para cada uma das séries.
+
+
+```{r fitQuality}
+stat.test %>% 
+  select(ticker, lm.glance) %>% 
+  unnest(lm.glance) %>% 
+  kable(caption = "Qualidade da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r fitAnova}
+stat.test %>% 
+  select(ticker, lm.anova) %>% 
+  unnest(lm.anova) %>% 
+  kable(caption= "Análise de variação") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 
 ```
 
-Regressão:
-
-```{r exemploRegressao}
-# fit linear model as lag = f(delta)
-fit <- lm( price.lag ~ price.delta, lagData )
-print(fit)
+```{r fitCoefs}
+stat.test %>% 
+  select(ticker, lm.coefs) %>% 
+  unnest(lm.coefs) %>% 
+  kable(caption="Coeficientes da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
-No exemplo assim, obteríamos $\alpha$ = `r round(fit$coefficients[1],2)` e $\beta$ = `r round(fit$coefficients[2]`,2).
+Então comparamos os `t-statistics` obtido para cada um dos coeficientes.
+
+```{r tstats}
+
+stat.test %>% 
+  select(ticker, lm.coefs) %>% 
+  unnest(lm.coefs) %>% 
+  select(ticker, term, estimate, statistic, p.value) %>%
+  filter( term!="(Intercept)" ) %>% 
+  select(-term) %>% 
+  inner_join( count(df.tickers , ticker), by="ticker") -> coefs
+
+coefs %>% 
+  kable(caption="Coeficientes da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+Para QUAL3 encontramos o valor de **`r round(coefs[coefs$ticker=="QUAL3", "statistic"],3)`** e para RENT3 encontramos **`r round(coefs[coefs$ticker=="RENT3", "statistic"],3)`** para ~500 amostras. Ambos os valores estão abaixo (em módulo) dos valores de referência na tabela Dickey-Fuller (**-2.87**), mostrando que ambas as séries são "não-estacionárias".
+
+## Teste de Cointegração (metodologia de Engle-Granger)
+
+A metodologia de Engle-Granger consiste em dois passos: primeiro fazemos uma regressão linear de uma série temporal contra a outra. Em seguida, aplicamos um teste de estacionariedade (como por exemplo o teste de Dickey-Fuller) nos resíduos desta regressão. Se os resíduos forem estacionários, isto significa que encontramos a combinação linear tal que as duas séries são cointegradas.
+
+Então vamos avaliar a combinação linear entre QUAL3 e RENT3
+
+```{r plotCombinacao}
+df.tickers %>% 
+  spread(key=ticker, value=price.close) %>% 
+  ggplot(aes(x=RENT3, y=QUAL3)) +
+    geom_point(size=2, alpha=.5) + theme_light()
+
+```
+
+
+```{r cointegradion}
+# faz a composicao para detectar a cointegração
+# fitando um modelo de um ativo contra outro
+df.tickers %>% 
+  spread(key=ticker, value=price.close) %>%
+  lm(QUAL3 ~ RENT3, .) -> coint
+
+# avalia valores obtidos no modelo
+coint %>%
+  glance() %>% 
+  kable(caption = "Qualidade da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r cointAnova}
+coint %>%
+  anova() %>%
+  tidy() %>%  
+  kable(caption = "Análise de Variacao") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+```{r cointCoefs}
+coint %>% 
+  tidy() %>%  
+  kable(caption = "Coeficientes da Regressao") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+E aplicar teste DF nos resíduos da regressão.
+
+```{r cointDF}
+# monta um dataset para avaliar os residuos
+df.tickers %>%
+  filter( ticker=="QUAL3" ) %>% 
+  select(ticker, ref.date, price.close) %>% 
+  bind_cols(
+    tibble(
+      predicted = coint$fitted.values,
+      residuals = coint$residuals
+    )    
+  ) %>% 
+  mutate( lagRes = lag(residuals,1),
+          deltaRes = residuals - lagRes ) -> coint.ds
+
+coint.ds %>% 
+  head(10) %>% 
+  kable(caption = "Preparacao dos Resíduos para fazer teste Dickey-Fuller") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+```{r resDF}
+# fit dos residuos
+coint.ds %>% 
+  lm(lagRes ~ deltaRes, .) -> coint.lm
+```
+
+
+```{r resGlance}
+# avalia valores obtidos no modelo
+coint.lm %>%
+  glance() %>% 
+  kable(caption = "Qualidade da regressão") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r resAnova}
+coint.lm %>%
+  anova() %>%
+  tidy() %>%  
+  kable(caption = "Análise de Variacao") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r resCoef}
+coint.lm %>% 
+  tidy() %>%  
+  kable(caption = "Coeficientes da Regressao") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+tstat <- coint.lm %>% tidy %>% filter(term=="deltaRes") %>% pull(statistic)
+```
+
+Desta vez, o `t-stat` obtido foi de **`r round(tstat,3)`**, muito além (em módulo) dos valores para a tabela de significância para 500 ou mais amostras (**-2.87**). Neste caso confirmando que a hipótese de que a série é estacionária, e portanto os pares estão cointegrados.
+
+## Trading Long-Short
+
+### Spread
+
+O gráfico abaixo apresenta a evolução do spread ao longo do tempo, com duas bandas representando -2 e 2 vezes o desvio padrão dos resíduos. Vemos que, apesar de os resíduos apresentarem certa persistência, comportam-se de maneira aparentemente desejável: flutuam razoavelmente ao redor da média, visitando-a com certa frequência. 
+
+```{r spreadPlot}
+# plot
+
+# banda +/- 2 SD
+sd.res <- sd(coint.ds$residuals)
+
+# residuos e banda
+coint.ds %>% 
+  ggplot(aes(x=ref.date, y=residuals)) + 
+  geom_line(color="blue",size=1) +
+  geom_hline(yintercept =  2*sd.res, color="red", linetype=2) +
+  geom_hline(yintercept = -2*sd.res, color="red", linetype=2) +
+  theme_light()
+```
+
+Uma regra possível de operação consistiria em vender o par quando o resíduo estiver acima da banda, e comprar o par quando estiver abaixo da banda. O trade pode ser encerrado quando o par voltar a média ou a um percentual qualquer da média.
+
+### Detectando Operações
+
+Seguindo a estratégia acima, usamos as transições de banda e pela média para detectar os pontos de entrada e saída de operações long e short.
+
+```{r startOperations}
+
+startPar <- 2*sd.res
+closePar <- 0
+
+coint.ds %>% 
+  mutate(operation=case_when(
+    lagRes < startPar & residuals >= startPar   ~ "short_start",
+    lagRes > closePar & residuals <= closePar    ~ "short_stop"
+  )) %>%
+  filter( !is.na(operation) ) %>% 
+  mutate( operation.lag = lag(operation,1) ) %>% 
+  select( ref.date, residuals, lagRes, operation, operation.lag ) %>% 
+  filter( operation!=operation.lag ) %>% 
+  select( -operation.lag) -> ops.short
+
+
+coint.ds %>% 
+  mutate(operation=case_when(
+    lagRes > -startPar & residuals <= -startPar ~ "long_start",
+    lagRes < -closePar & residuals >= -closePar ~ "long_stop"
+  )) %>%
+  filter( !is.na(operation) ) %>% 
+  mutate( operation.lag = lag(operation,1) ) %>% 
+  select( ref.date, residuals, lagRes, operation, operation.lag ) %>% 
+  filter( operation!=operation.lag ) %>% 
+  select( -operation.lag) -> ops.long
+
+operations <- bind_rows(ops.short, ops.long)
+
+
+# residuos e banda
+coint.ds %>% 
+  ggplot(aes(x=ref.date, y=residuals)) + 
+  geom_line(color="blue",size=1, alpha=0.3) +
+  geom_hline(yintercept =  startPar, color="red", linetype=2, alpha=0.5) +
+  geom_hline(yintercept =  closePar, color="blue", linetype=2, alpha=0.5) +
+  geom_hline(yintercept = -closePar, color="blue", linetype=2, alpha=0.5) +
+  geom_hline(yintercept = -startPar, color="red", linetype=2, alpha=0.5) +
+  geom_vline(data=operations, 
+             mapping=aes(xintercept = ref.date, color=operation),
+             size=1, linetype=1) +
+  theme_light() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+```
 
 
 ### Referências
