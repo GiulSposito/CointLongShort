@@ -339,21 +339,24 @@ Seguindo a estratégia acima, usamos as transições de banda e pela média para
 
 ```{r startOperations}
 
+# estrategia de negociacao, abrir ao -/+ 2 * sd e fechar no 0
 startPar <- 2*sd.res
 closePar <- 0
 
+# detecta os pontos de entrada e saida nas operacoes de short
 coint.ds %>% 
   mutate(operation=case_when(
-    lagRes < startPar & residuals >= startPar   ~ "short_start",
-    lagRes > closePar & residuals <= closePar    ~ "short_stop"
+    lagRes < startPar & residuals >= startPar   ~ "short_start", # cruzou o gatilho de start
+    lagRes > closePar & residuals <= closePar    ~ "short_stop"  # cruzou o gatilho de stop
   )) %>%
   filter( !is.na(operation) ) %>% 
+  # elminia cruzamentos duplicado (quando a operacao ja esta aberta)
   mutate( operation.lag = lag(operation,1) ) %>% 
   select( ref.date, residuals, lagRes, operation, operation.lag ) %>% 
   filter( operation!=operation.lag ) %>% 
   select( -operation.lag) -> ops.short
 
-
+# detecta pontos de entrada e saida nas operacoes de long
 coint.ds %>% 
   mutate(operation=case_when(
     lagRes > -startPar & residuals <= -startPar ~ "long_start",
@@ -365,8 +368,8 @@ coint.ds %>%
   filter( operation!=operation.lag ) %>% 
   select( -operation.lag) -> ops.long
 
+# junta as operacoes
 operations <- bind_rows(ops.short, ops.long)
-
 
 # residuos e banda
 coint.ds %>% 
@@ -383,8 +386,140 @@ coint.ds %>%
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 ```
 
+A partir dos pontos de entrada e saída do par detectados, podemos então compor a série de operações.
 
-### Referências
+```{r ops}
+
+# junta os pares operados  pares
+operations %>% 
+  arrange(ref.date) %>% 
+  mutate( opLag = lead(operation, 1),
+          open=ref.date,
+          close = lead(ref.date,1) ) %>% 
+  filter( (operation=="short_start" & opLag=="short_stop") |
+          (operation=="long_start" & opLag=="long_stop") ) %>% 
+  select(-ref.date, -residuals, -lagRes, -opLag) %>% 
+  mutate( operation=case_when(
+    operation=="short_start" ~ "short",
+    operation=="long_start"  ~ "long"
+  ) ) %>% 
+  mutate( life.span = round(lubridate::interval(open, close)/days(1)) )-> operations
+
+operations %>%  
+  kable(caption = "Operacoes Cointegradas") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+Com a tabela de operações, podemos simular os ganhos de operação, lembrando que quando o par é vendido abre-se simultaneamente uma posição vendida na primeira ação e comprada na segunda ação e a operação oposta é realizada quando o par é comprado.
+
+Neste sentido vamos recuperar os valores da cotação de QUAL3 e RENT3 nas datas de abertura e fechamento de operações.
+
+```{r}
+# precos de abertura
+operations %>%
+  select( open ) %>% 
+  inner_join(df.tickers, by=c("open"="ref.date")) %>% 
+  spread(key = ticker, value=price.close) %>% 
+  set_names(c("open","QUAL3.SA.OPEN","RENT3.SA.OPEN")) -> prices.open
+
+# precos de fechamento
+operations %>%
+  select( close ) %>% 
+  inner_join(df.tickers, by=c("close"="ref.date")) %>% 
+  spread(key = ticker, value=price.close) %>% 
+  set_names(c("close","QUAL3.SA.CLOSE","RENT3.SA.CLOSE")) -> prices.close
+
+# monta operacao + precos
+operations %>%
+  inner_join(prices.open, by="open") %>% 
+  inner_join(prices.close, by="close") -> op.results
+
+op.results %>% 
+  kable(caption = "Cotações do par integrado") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+É possível visualizar as operações de cada um dos ativos na cotação dos mesmos.
+
+```{r}
+
+# plota os ativos e as operacoes
+ggplot() +
+  geom_line(data=df.tickers, 
+            aes(x=ref.date, y=price.close, color=ticker),size=1) +
+  geom_rect(data=op.results,
+            aes(xmin=open, ymin=QUAL3.SA.OPEN,
+                xmax=close, ymax=QUAL3.SA.CLOSE,
+                fill=ifelse(QUAL3.SA.OPEN<QUAL3.SA.CLOSE,"green","purple")),
+                alpha=0.35, show.legend = F) +
+    geom_rect(data=op.results,
+            aes(xmin=open, ymin=RENT3.SA.OPEN,
+                xmax=close, ymax=RENT3.SA.CLOSE,
+                fill=ifelse(RENT3.SA.OPEN<RENT3.SA.CLOSE,"green","purple")),
+                alpha=0.35, show.legend = F) +
+  theme_light() 
+
+
+```
+
+Com as cotações na mão vamos simular uma operação cointegrada com cash neutro, ou seja, o volume financeiro comprado é o mesmo valor vendido, nesta simulação usaremos R$1000,00 em cada uma dos dois ativos, e vamos avaliar o rendimento das mesmas.
+
+```{r cashNeutro}
+
+# define o capital investido
+k <- 2000
+
+# calculo dos rendimentos
+op.results %>% 
+  # calcula o volume de cada ativo comprado/vendido correspondente ao valor do capital
+  mutate( vol.qual3 = round(0.5*k/QUAL3.SA.OPEN),
+          vol.rent3 = round(0.5*k/RENT3.SA.OPEN) ) %>% 
+  # calcula o saldo $$ entre vendido e comprado dependendo da direção da operação
+  mutate( entrada = case_when(
+    operation == "short" ~ round(vol.qual3*QUAL3.SA.OPEN-vol.rent3*RENT3.SA.OPEN,2),
+    operation == "long"  ~ round(vol.rent3*RENT3.SA.OPEN-vol.qual3*QUAL3.SA.OPEN,2)
+  )) %>% 
+  # calcula o saldo $$ para fechar a operação
+  mutate( saida = case_when(
+    operation == "short" ~ round(vol.rent3*RENT3.SA.CLOSE-vol.qual3*QUAL3.SA.CLOSE,2),
+    operation == "long"  ~ round(vol.qual3*QUAL3.SA.CLOSE-vol.rent3*RENT3.SA.CLOSE,2)
+  )) %>% 
+  # calcula o retorno em função do capital total investido
+  mutate(
+    retorno = (saida-entrada)/k
+  ) -> results
+
+results %>% 
+  select(operation, open, close, entrada, saida, retorno) %>% 
+  kable(caption = "Retorno obtido") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+Vale ressaltar que as `entradas` mostrados na tabela corresponde a diferença ao balanço líquido de capital, já que nem sempre é possível "casar" exatamente o mesmo valor dado o valor unitário das ações. Já as `saídas` corresponde saldo obtido para zerar as operações de long+short, o que em tese, corresponde o ganho obtido.
+
+Já o `rendimento` é calculado com base no valor obtido sobre o capital total investido, na nossa simulação R$2000,00, ou seja, R$1000,00 para cada operação e o resultado total:
+
+```{r totalResult}
+results %>% 
+  summarise( saldoEntrada = sum(entrada,na.rm = T),
+             saldoSaida   = sum(saida,na.rm = T)) %>% 
+  t() %>% 
+  kable(caption="Resultado") %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+Como simulamos as operações usando a estratégia [_cash-neutral_](https://www.investopedia.com/terms/c/cash-neutral.asp), em teoria poderíamos manter o capital total investido em Tesouro Direto, LCAs ou LCI e usá-lo como garantia, permitindo assim que as operações pudessem sere feitas com muito pouco dinheiro investido. No cenário simulado foi possível obter cerca de R$700,00 dos R$2000,00 reais em uma janela de dois anos (35% de rendimento bruto), o que parece bem promissor.
+
+Cabe lembrar que não acrescentamos os custos de operação, do aluguel de ações ou de tributos, o que poderiam alterar significativamente o resultado final. Tema esse que ficará para um próximo post.
+
+## Conclusão
+
+Reprodizimos neste [R-Notebook](https://rmarkdown.rstudio.com/r_notebooks) o passo-a-passo para encontrar ativos financeiros cointegrados e identificar os pontos de entrada de operações Long e Short e também conseguimos avaliar os resultados dessa estratégida de investimento. 
+
+## Referências
 
 1. Moura, Guilherme V. e Caldeira, João F. - **Seleção de uma Carteira de Pares de Ações Usando Cointegração: Uma Estrategia de Arbitragem Estatística** - https://www.scribd.com/document/237462625/4785-19806-1-PB
 1. Caldeira, João F. - **Arbitragem Estatística, Estratégia Long-Short Pairs Trading, Abordagem com Cointegração Aplicada ao Mercado de Ações Brasileiro** - http://www.anpec.org.br/revista/vol14/vol14n1p521_546.pdf

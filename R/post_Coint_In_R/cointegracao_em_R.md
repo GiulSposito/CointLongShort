@@ -1039,21 +1039,24 @@ Seguindo a estratégia acima, usamos as transições de banda e pela média para
 
 
 ```r
+# estrategia de negociacao, abrir ao -/+ 2 * sd e fechar no 0
 startPar <- 2*sd.res
 closePar <- 0
 
+# detecta os pontos de entrada e saida nas operacoes de short
 coint.ds %>% 
   mutate(operation=case_when(
-    lagRes < startPar & residuals >= startPar   ~ "short_start",
-    lagRes > closePar & residuals <= closePar    ~ "short_stop"
+    lagRes < startPar & residuals >= startPar   ~ "short_start", # cruzou o gatilho de start
+    lagRes > closePar & residuals <= closePar    ~ "short_stop"  # cruzou o gatilho de stop
   )) %>%
   filter( !is.na(operation) ) %>% 
+  # elminia cruzamentos duplicado (quando a operacao ja esta aberta)
   mutate( operation.lag = lag(operation,1) ) %>% 
   select( ref.date, residuals, lagRes, operation, operation.lag ) %>% 
   filter( operation!=operation.lag ) %>% 
   select( -operation.lag) -> ops.short
 
-
+# detecta pontos de entrada e saida nas operacoes de long
 coint.ds %>% 
   mutate(operation=case_when(
     lagRes > -startPar & residuals <= -startPar ~ "long_start",
@@ -1065,8 +1068,8 @@ coint.ds %>%
   filter( operation!=operation.lag ) %>% 
   select( -operation.lag) -> ops.long
 
+# junta as operacoes
 operations <- bind_rows(ops.short, ops.long)
-
 
 # residuos e banda
 coint.ds %>% 
@@ -1084,6 +1087,315 @@ coint.ds %>%
 ```
 
 ![](cointegracao_em_R_files/figure-html/startOperations-1.png)<!-- -->
+
+A partir dos pontos de entrada e saída do par detectados, podemos então compor a série de operações.
+
+
+```r
+# junta os pares operados  pares
+operations %>% 
+  arrange(ref.date) %>% 
+  mutate( opLag = lead(operation, 1),
+          open=ref.date,
+          close = lead(ref.date,1) ) %>% 
+  filter( (operation=="short_start" & opLag=="short_stop") |
+          (operation=="long_start" & opLag=="long_stop") ) %>% 
+  select(-ref.date, -residuals, -lagRes, -opLag) %>% 
+  mutate( operation=case_when(
+    operation=="short_start" ~ "short",
+    operation=="long_start"  ~ "long"
+  ) ) %>% 
+  mutate( life.span = round(lubridate::interval(open, close)/days(1)) )-> operations
+
+operations %>%  
+  kable(caption = "Operacoes Cointegradas") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+<table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Operacoes Cointegradas</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> operation </th>
+   <th style="text-align:left;"> open </th>
+   <th style="text-align:left;"> close </th>
+   <th style="text-align:right;"> life.span </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2012-11-12 </td>
+   <td style="text-align:left;"> 2012-11-29 </td>
+   <td style="text-align:right;"> 17 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> long </td>
+   <td style="text-align:left;"> 2013-02-13 </td>
+   <td style="text-align:left;"> 2013-02-20 </td>
+   <td style="text-align:right;"> 7 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> long </td>
+   <td style="text-align:left;"> 2013-07-11 </td>
+   <td style="text-align:left;"> 2013-08-20 </td>
+   <td style="text-align:right;"> 40 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2014-02-04 </td>
+   <td style="text-align:left;"> 2014-02-18 </td>
+   <td style="text-align:right;"> 14 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2014-03-07 </td>
+   <td style="text-align:left;"> 2014-04-22 </td>
+   <td style="text-align:right;"> 46 </td>
+  </tr>
+</tbody>
+</table>
+
+Com a tabela de operações, podemos simular os ganhos de operação, lembrando que quando o par é vendido abre-se simultaneamente uma posição vendida na primeira ação e comprada na segunda ação e a operação oposta é realizada quando o par é comprado.
+
+Neste sentido vamos recuperar os valores da cotação de QUAL3 e RENT3 nas datas de abertura e fechamento de operações.
+
+
+```r
+# precos de abertura
+operations %>%
+  select( open ) %>% 
+  inner_join(df.tickers, by=c("open"="ref.date")) %>% 
+  spread(key = ticker, value=price.close) %>% 
+  set_names(c("open","QUAL3.SA.OPEN","RENT3.SA.OPEN")) -> prices.open
+
+# precos de fechamento
+operations %>%
+  select( close ) %>% 
+  inner_join(df.tickers, by=c("close"="ref.date")) %>% 
+  spread(key = ticker, value=price.close) %>% 
+  set_names(c("close","QUAL3.SA.CLOSE","RENT3.SA.CLOSE")) -> prices.close
+
+# monta operacao + precos
+operations %>%
+  inner_join(prices.open, by="open") %>% 
+  inner_join(prices.close, by="close") -> op.results
+
+op.results %>% 
+  kable(caption = "Cotações do par integrado") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+<table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Cotações do par integrado</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> operation </th>
+   <th style="text-align:left;"> open </th>
+   <th style="text-align:left;"> close </th>
+   <th style="text-align:right;"> life.span </th>
+   <th style="text-align:right;"> QUAL3.SA.OPEN </th>
+   <th style="text-align:right;"> RENT3.SA.OPEN </th>
+   <th style="text-align:right;"> QUAL3.SA.CLOSE </th>
+   <th style="text-align:right;"> RENT3.SA.CLOSE </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2012-11-12 </td>
+   <td style="text-align:left;"> 2012-11-29 </td>
+   <td style="text-align:right;"> 17 </td>
+   <td style="text-align:right;"> 22.40 </td>
+   <td style="text-align:right;"> 31.017 </td>
+   <td style="text-align:right;"> 19.99 </td>
+   <td style="text-align:right;"> 32.511 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> long </td>
+   <td style="text-align:left;"> 2013-02-13 </td>
+   <td style="text-align:left;"> 2013-02-20 </td>
+   <td style="text-align:right;"> 7 </td>
+   <td style="text-align:right;"> 19.50 </td>
+   <td style="text-align:right;"> 34.582 </td>
+   <td style="text-align:right;"> 21.50 </td>
+   <td style="text-align:right;"> 32.914 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> long </td>
+   <td style="text-align:left;"> 2013-07-11 </td>
+   <td style="text-align:left;"> 2013-08-20 </td>
+   <td style="text-align:right;"> 40 </td>
+   <td style="text-align:right;"> 15.03 </td>
+   <td style="text-align:right;"> 30.311 </td>
+   <td style="text-align:right;"> 17.37 </td>
+   <td style="text-align:right;"> 29.026 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2014-02-04 </td>
+   <td style="text-align:left;"> 2014-02-18 </td>
+   <td style="text-align:right;"> 14 </td>
+   <td style="text-align:right;"> 21.00 </td>
+   <td style="text-align:right;"> 29.657 </td>
+   <td style="text-align:right;"> 19.60 </td>
+   <td style="text-align:right;"> 31.387 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2014-03-07 </td>
+   <td style="text-align:left;"> 2014-04-22 </td>
+   <td style="text-align:right;"> 46 </td>
+   <td style="text-align:right;"> 20.85 </td>
+   <td style="text-align:right;"> 29.806 </td>
+   <td style="text-align:right;"> 22.47 </td>
+   <td style="text-align:right;"> 34.571 </td>
+  </tr>
+</tbody>
+</table>
+
+É possível visualizar as operações de cada um dos ativos na cotação dos mesmos.
+
+
+```r
+# plota os ativos e as operacoes
+ggplot() +
+  geom_line(data=df.tickers, 
+            aes(x=ref.date, y=price.close, color=ticker),size=1) +
+  geom_rect(data=op.results,
+            aes(xmin=open, ymin=QUAL3.SA.OPEN,
+                xmax=close, ymax=QUAL3.SA.CLOSE,
+                fill=ifelse(QUAL3.SA.OPEN<QUAL3.SA.CLOSE,"green","purple")),
+                alpha=0.35, show.legend = F) +
+    geom_rect(data=op.results,
+            aes(xmin=open, ymin=RENT3.SA.OPEN,
+                xmax=close, ymax=RENT3.SA.CLOSE,
+                fill=ifelse(RENT3.SA.OPEN<RENT3.SA.CLOSE,"green","purple")),
+                alpha=0.35, show.legend = F) +
+  theme_light() 
+```
+
+![](cointegracao_em_R_files/figure-html/unnamed-chunk-2-1.png)<!-- -->
+
+
+Com as cotações na mão vamos simular uma operação cointegrada com cash neutro, ou seja, o volume financeiro comprado é o mesmo valor vendido, nesta simulação usaremos R$1000,00 em cada uma dos dois ativos, e vamos avaliar o rendimento das mesmas.
+
+
+```r
+# define o capital investido
+k <- 2000
+
+# calculo dos rendimentos
+op.results %>% 
+  # calcula o volume de cada ativo comprado/vendido correspondente ao valor do capital
+  mutate( vol.qual3 = round(0.5*k/QUAL3.SA.OPEN),
+          vol.rent3 = round(0.5*k/RENT3.SA.OPEN) ) %>% 
+  # calcula o saldo $$ entre vendido e comprado dependendo da direção da operação
+  mutate( entrada = case_when(
+    operation == "short" ~ round(vol.qual3*QUAL3.SA.OPEN-vol.rent3*RENT3.SA.OPEN,2),
+    operation == "long"  ~ round(vol.rent3*RENT3.SA.OPEN-vol.qual3*QUAL3.SA.OPEN,2)
+  )) %>% 
+  # calcula o saldo $$ para fechar a operação
+  mutate( saida = case_when(
+    operation == "short" ~ round(vol.rent3*RENT3.SA.CLOSE-vol.qual3*QUAL3.SA.CLOSE,2),
+    operation == "long"  ~ round(vol.qual3*QUAL3.SA.CLOSE-vol.rent3*RENT3.SA.CLOSE,2)
+  )) %>% 
+  # calcula o retorno em função do capital total investido
+  mutate(
+    retorno = (saida-entrada)/k
+  ) -> results
+
+results %>% 
+  select(operation, open, close, entrada, saida, retorno) %>% 
+  kable(caption = "Retorno obtido") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+<table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Retorno obtido</caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> operation </th>
+   <th style="text-align:left;"> open </th>
+   <th style="text-align:left;"> close </th>
+   <th style="text-align:right;"> entrada </th>
+   <th style="text-align:right;"> saida </th>
+   <th style="text-align:right;"> retorno </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2012-11-12 </td>
+   <td style="text-align:left;"> 2012-11-29 </td>
+   <td style="text-align:right;"> 15.46 </td>
+   <td style="text-align:right;"> 140.80 </td>
+   <td style="text-align:right;"> 0.062670 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> long </td>
+   <td style="text-align:left;"> 2013-02-13 </td>
+   <td style="text-align:left;"> 2013-02-20 </td>
+   <td style="text-align:right;"> 8.38 </td>
+   <td style="text-align:right;"> 141.99 </td>
+   <td style="text-align:right;"> 0.066805 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> long </td>
+   <td style="text-align:left;"> 2013-07-11 </td>
+   <td style="text-align:left;"> 2013-08-20 </td>
+   <td style="text-align:right;"> -6.75 </td>
+   <td style="text-align:right;"> 205.93 </td>
+   <td style="text-align:right;"> 0.106340 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2014-02-04 </td>
+   <td style="text-align:left;"> 2014-02-18 </td>
+   <td style="text-align:right;"> -0.34 </td>
+   <td style="text-align:right;"> 126.36 </td>
+   <td style="text-align:right;"> 0.063350 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> short </td>
+   <td style="text-align:left;"> 2014-03-07 </td>
+   <td style="text-align:left;"> 2014-04-22 </td>
+   <td style="text-align:right;"> -12.60 </td>
+   <td style="text-align:right;"> 96.85 </td>
+   <td style="text-align:right;"> 0.054725 </td>
+  </tr>
+</tbody>
+</table>
+
+Vale ressaltar que as `entradas` mostrados na tabela corresponde a diferença ao balanço líquido de capital, já que nem sempre é possível "casar" exatamente o mesmo valor dado o valor unitário das ações. Já as `saídas` corresponde saldo obtido para zerar as operações de long+short, o que em tese, corresponde o ganho obtido.
+
+Já o `rendimento` é calculado com base no valor obtido sobre o capital total investido, na nossa simulação R$2000,00, ou seja, R$1000,00 para cada operação. 
+
+E o resultado total.
+
+
+```r
+results %>% 
+  summarise( saldoEntrada = sum(entrada,na.rm = T),
+             saldoSaida   = sum(saida,na.rm = T)) %>% 
+  t() %>% 
+  kable(caption="Resultado") %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+<table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>Resultado</caption>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> saldoEntrada </td>
+   <td style="text-align:right;"> 4.15 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> saldoSaida </td>
+   <td style="text-align:right;"> 711.93 </td>
+  </tr>
+</tbody>
+</table>
 
 
 ### Referências
