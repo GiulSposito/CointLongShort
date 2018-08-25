@@ -51,9 +51,9 @@ library(kableExtra)
 library(xlsx)
 xls <- read.xlsx("./exemplos-cointegracao-qual3_rent32.xlsx",2) 
 
-# what we get?
+# O que nos importamos?
 xls %>%
-  select(-`NA..4`) %>%  # this column crashs the table format
+  select(-`NA..4`) %>%  # esta coluna estraga a formatacao da tabela
   head(10) %>% 
   kable(caption="Excel Importado") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
@@ -215,8 +215,8 @@ Como o Excel não está adequadamente formatado (há células colapsadas e colun
 
 
 ```r
-# cleaning up (tidying)
-# first get QUAL3
+# limpando e arrumando (tidying)
+# primeiro isola o QUAL3
 xls %>% 
   as.tibble() %>% 
   select( ref.date = Data, price.close=QUAL3 ) %>% 
@@ -225,7 +225,7 @@ xls %>%
           price.close = as.numeric(as.character(price.close)) ) -> qual
 
 
-# and then RENT3
+# despois o RENT3
 xls %>% 
   as.tibble() %>% 
   select( ref.date = Data, price.close=RENT3 ) %>% 
@@ -233,10 +233,10 @@ xls %>%
   mutate( ticker="RENT3",
           price.close = as.numeric(as.character(price.close)) ) -> rent
 
-# bind them
+# Junta ambos
 df.tickers = bind_rows(qual,rent)
 
-# much better
+# ficou melhor
 df.tickers %>% 
   arrange(ref.date) %>% 
   head(10) %>% 
@@ -314,7 +314,7 @@ Com o dataset mais organizado, vamos visualizar os preços dos ativos importados
 
 
 ```r
-## plot as line
+# plota o preco dos ativos
 library(ggplot2)
 ggplot(df.tickers,aes(x=ref.date, y=price.close, color=ticker)) +
   geom_line(size=1) + theme_light()
@@ -338,9 +338,8 @@ O valor de referência é sensível ao número de pontos usados na regressão. A
 
 
 ```r
-# fit a LM model with one day delta price
+# esta funcao calcula o delta e o "lag" e entao fit e devolve um modelo
 fitLagModel <- function(dtf){
-
   # pega os datasets de precos de um ticker
   dtf %>% 
     select( price.close ) %>% # so interessa o preco de fechametno
@@ -351,17 +350,18 @@ fitLagModel <- function(dtf){
     return()
 }
 
-## testes de series estacionarias
-## para cada ticker fita o modelo linear
-## tidyfica alguns parametros do modelo
+# tidyfica alguns parametros do modelo
 library(broom)
+
+# testes de series estacionarias
+# para cada ticker fita o modelo linear
 df.tickers %>%
   group_by(ticker) %>%
   nest() %>% 
-  mutate ( lagModel = map(data, fitLagModel), 
-           lm.coefs  = map(lagModel,tidy),  
-           lm.glance = map(lagModel, glance),
-           lm.anova  = map(lagModel, anova),
+  mutate ( lagModel = map(data, fitLagModel), # modelo liner do "lag x delta"
+           lm.coefs  = map(lagModel,tidy),    # coeficientes obtidos do modelo
+           lm.glance = map(lagModel, glance), # qualidade do fit
+           lm.anova  = map(lagModel, anova),  # analise de variancia do modelo
            lm.anova  = map(lm.anova, tidy)) -> stat.test
 ```
 
@@ -370,6 +370,7 @@ Então para cada um dos ticker, temos um dataset com as cotações, o modelo fit
 
 
 ```r
+# visualizando a qualidade do fit
 stat.test %>% 
   select(ticker, lm.glance) %>% 
   unnest(lm.glance) %>% 
@@ -429,6 +430,7 @@ stat.test %>%
 
 
 ```r
+# visualizando a analise de variancia do modelo
 stat.test %>% 
   select(ticker, lm.anova) %>% 
   unnest(lm.anova) %>% 
@@ -491,6 +493,7 @@ stat.test %>%
 
 
 ```r
+# coeficientes obtidos
 stat.test %>% 
   select(ticker, lm.coefs) %>% 
   unnest(lm.coefs) %>% 
@@ -550,6 +553,7 @@ Então comparamos os `t-statistics` obtido para cada um dos coeficientes.
 
 
 ```r
+# isola o coeficient dos betas dos modelos
 stat.test %>% 
   select(ticker, lm.coefs) %>% 
   unnest(lm.coefs) %>% 
@@ -558,6 +562,7 @@ stat.test %>%
   select(-term) %>% 
   inner_join( count(df.tickers , ticker), by="ticker") -> coefs
 
+# mostra eles
 coefs %>% 
   kable(caption="Coeficientes da regressão") %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
@@ -616,8 +621,8 @@ df.tickers %>%
 # faz a composicao para detectar a cointegração
 # fitando um modelo de um ativo contra outro
 df.tickers %>% 
-  spread(key=ticker, value=price.close) %>%
-  lm(QUAL3 ~ RENT3, .) -> coint
+  spread(key=ticker, value=price.close) %>% # pivota para ref.date, qual3 e rent3
+  lm(QUAL3 ~ RENT3, .) -> coint # fita o modelo
 
 # avalia valores obtidos no modelo
 coint %>%
@@ -664,6 +669,7 @@ coint %>%
 
 
 ```r
+# avalia dados de variancia
 coint %>%
   anova() %>%
   tidy() %>%  
@@ -705,6 +711,7 @@ coint %>%
 
 
 ```r
+# mostra os coeficientes do modelo
 coint %>% 
   tidy() %>%  
   kable(caption = "Coeficientes da Regressao") %>%
@@ -745,6 +752,7 @@ E aplicar teste DF nos resíduos da regressão.
 
 ```r
 # monta um dataset para avaliar os residuos
+# nao eh necessario mas fica mais facil de visualizar
 df.tickers %>%
   filter( ticker=="QUAL3" ) %>% 
   select(ticker, ref.date, price.close) %>% 
@@ -757,6 +765,7 @@ df.tickers %>%
   mutate( lagRes = lag(residuals,1),
           deltaRes = residuals - lagRes ) -> coint.ds
 
+# mosta os dados
 coint.ds %>% 
   head(10) %>% 
   kable(caption = "Preparacao dos Resíduos para fazer teste Dickey-Fuller") %>%
@@ -925,6 +934,7 @@ coint.lm %>%
 
 
 ```r
+# variancia do modelo dos residuos
 coint.lm %>%
   anova() %>%
   tidy() %>%  
@@ -966,6 +976,7 @@ coint.lm %>%
 
 
 ```r
+# coeficientes do modelo dos residuos
 coint.lm %>% 
   tidy() %>%  
   kable(caption = "Coeficientes da Regressao") %>%
@@ -1002,6 +1013,7 @@ coint.lm %>%
 </table>
 
 ```r
+# usado para mostrar no texto
 tstat <- coint.lm %>% tidy %>% filter(term=="deltaRes") %>% pull(statistic)
 ```
 
@@ -1277,7 +1289,6 @@ ggplot() +
 
 ![](cointegracao_em_R_files/figure-html/unnamed-chunk-2-1.png)<!-- -->
 
-
 Com as cotações na mão vamos simular uma operação cointegrada com cash neutro, ou seja, o volume financeiro comprado é o mesmo valor vendido, nesta simulação usaremos R$1000,00 em cada uma dos dois ativos, e vamos avaliar o rendimento das mesmas.
 
 
@@ -1369,9 +1380,7 @@ results %>%
 
 Vale ressaltar que as `entradas` mostrados na tabela corresponde a diferença ao balanço líquido de capital, já que nem sempre é possível "casar" exatamente o mesmo valor dado o valor unitário das ações. Já as `saídas` corresponde saldo obtido para zerar as operações de long+short, o que em tese, corresponde o ganho obtido.
 
-Já o `rendimento` é calculado com base no valor obtido sobre o capital total investido, na nossa simulação R$2000,00, ou seja, R$1000,00 para cada operação. 
-
-E o resultado total.
+Já o `rendimento` é calculado com base no valor obtido sobre o capital total investido, na nossa simulação R$2000,00, ou seja, R$1000,00 para cada operação e o resultado total:
 
 
 ```r
@@ -1397,8 +1406,15 @@ results %>%
 </tbody>
 </table>
 
+Como simulamos as operações usando a estratégia [_cash-neutral_](https://www.investopedia.com/terms/c/cash-neutral.asp), em teoria poderíamos manter o capital total investido em Tesouro Direto, LCAs ou LCI e usá-lo como garantia, permitindo assim que as operações pudessem sere feitas com muito pouco dinheiro investido. No cenário simulado foi possível obter cerca de R$700,00 dos R$2000,00 reais em uma janela de dois anos (35% de rendimento bruto), o que parece bem promissor.
 
-### Referências
+Cabe lembrar que não acrescentamos os custos de operação, do aluguel de ações ou de tributos, o que poderiam alterar significativamente o resultado final. Tema esse que ficará para um próximo post.
+
+## Conclusão
+
+Reprodizimos neste [R-Notebook](https://rmarkdown.rstudio.com/r_notebooks) o passo-a-passo para encontrar ativos financeiros cointegrados e identificar os pontos de entrada de operações Long e Short e também conseguimos avaliar os resultados dessa estratégida de investimento. 
+
+## Referências
 
 1. Moura, Guilherme V. e Caldeira, João F. - **Seleção de uma Carteira de Pares de Ações Usando Cointegração: Uma Estrategia de Arbitragem Estatística** - https://www.scribd.com/document/237462625/4785-19806-1-PB
 1. Caldeira, João F. - **Arbitragem Estatística, Estratégia Long-Short Pairs Trading, Abordagem com Cointegração Aplicada ao Mercado de Ações Brasileiro** - http://www.anpec.org.br/revista/vol14/vol14n1p521_546.pdf
