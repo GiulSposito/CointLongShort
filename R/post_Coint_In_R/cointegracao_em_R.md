@@ -8,17 +8,33 @@ output:
   pdf_document: default
 ---
 
-Operações Long-Short por Cointegração é uma estratégia de investimento em ativos que consistes em ...este notebook refaz o passo-a-passo nas análises estatísticas necessárias para esse tipo de operação
+Operações Long-Short por Cointegração é uma estratégia de investimento em ativos que consiste em encontrar pares de ações (índices ou _commodities_) que mantém um padrão de comportamento estável e previsível (equilíbrio estacionário) com variações de curto prazo que permita ser explorado em operações de Long (compra) e Short (venda) do par. Este R-Notebook refaz o passo-a-passo nas análises estatísticas necessárias para detectar e operação essa estratégia de mercado.
 
 <!--more-->
 
 ## Introdução
 
-Operações Long-Short por Cointegração... 
+A ideia tradicional de uma reversão de "_Pair Trading_" é encontrar dois ativos distintos, compartilhando fatores subjacentes que afetam seus movimentos, por exemplo, McDonald's e Burger King. Os preços das ações de longo prazo provavelmente estarão em equilíbrio devido aos amplos fatores de mercado que afetam a produção e o consumo de hambúrguer. Uma interrupção de curto prazo para um indivíduo no par, como uma interrupção na cadeia de fornecimento que afeta apenas o McDonald's, levaria a um deslocamento temporário em seus preços relativos. 
+
+Isso significa que uma negociação de curto prazo realizada nesse ponto de interrupção deve se tornar lucrativa, pois as duas ações retornam ao seu valor de equilíbrio assim que a interrupção for resolvida. 
+
+Encontrar pares de ativos ou índices que se comportem desta maneira possibilita abrir operações Long (compra) e short (venda) simultâneas quando os ativos se "afastam" momentaneamente do movimento conjunto, e se encerra quando elas retornam para o padrão. Ganha-se então com a variação da diferença (ou a distância) entre os dois.
 
 ## Análise de Cointegração usando R
 
+Análise de Cointegração e Operação Long-Short consiste sumariamente em:
 
+1. Identificar uma relação histórica entre dois ativos, ou seja, quando um sobe o outro sobe, quando um cai o outro cai (em termos percentuais fica fácil); 
+1. Visualizar um momento em que há uma divergência neste percentual entre os dois ativos; 
+1. Compra A e vende B (aluga e vende); 
+1. Ao retornar para o percentual histórico desejado desfaz a operação, ou seja, compra B e vende A.
+
+O ideal ao se fazer o Long/Short é que ele seja feito no mesmo financeiro (_cash-neutro_). Neste caso, não há a preocupação se a bolsa sobe ou desce, o que importa é a relação percentual, pois vai se estar atuando nas duas pontas (compra e venda). Além disso, praticamente não há desembolso financeiro, pois o valor da venda do ativo alugado será utilizado para a compra (há apenas a margem da CBLC ou da corretora (se for maior). E ainda dá para alavancar a carteira.
+
+
+
+
+### Caso de Exemplo: QUAL3 e RENT3
 
 Este notebook tem o objetivo de reproduzir o passo-a-passo para detectar e avaliar pares de ativos [cointegrados](https://en.wikipedia.org/wiki/Cointegration) mostrado no [blog do Dr. Nickel](https://drnickel.wordpress.com/2015/04/03/long-short-atraves-de-cointegracao-parte-3/). 
 Muitos dos textos explicativos aqui foram retirados (ou fortemente baseados) na série de posts sobre Cointegração explicando o processo de análise, portando vale a pena ler a série toda, bem mais detalhada e com ótimas referências:
@@ -28,7 +44,7 @@ Muitos dos textos explicativos aqui foram retirados (ou fortemente baseados) na 
 1. [Long-Short através de Cointegração – Parte 3](https://drnickel.wordpress.com/2015/04/03/long-short-atraves-de-cointegracao-parte-3/)
 1. [Long-Short através de Cointegração – Parte 4](https://drnickel.wordpress.com/2016/11/05/long-short-atraves-de-cointegracao-parte-4/)
 
-### Dataset:  QUAL3 e RENT3
+### Dataset
 
 No poste ele faz faz uma análise dos ativos [**QUAL3** - QUALICORP ON](https://www.infomoney.com.br/qualicorp-qual3) e [**RENT3** - Localiza ON](https://www.infomoney.com.br/localiza-rent3) usando uma [planilha excel](https://drnickel.files.wordpress.com/2015/04/exemplos-cointegracao-qual3_rent32.xlsx), neste notebook refaço o procedimento usando R. Para garantir que os resultados obtidos em ambas sejam os mesmos usaremos exatamente os mesmo dados que constam na planilha.
 
@@ -310,7 +326,7 @@ df.tickers %>%
 
 
 
-Com o dataset mais organizado, vamos visualizar os preços dos ativos importados.
+Com o _dataset_ mais organizado, vamos visualizar os preços dos ativos importados.
 
 
 ```r
@@ -322,7 +338,7 @@ ggplot(df.tickers,aes(x=ref.date, y=price.close, color=ticker)) +
 
 ![](cointegracao_em_R_files/figure-html/tickersPlot-1.png)<!-- -->
 
-## Séries Não Estacionárias
+### Séries Não Estacionárias
 
 O primeiro passo é testar se cada uma das séries é não-estacionária, aplicando o teste [Dickey-Fuller](https://en.wikipedia.org/wiki/Dickey%E2%80%93Fuller_test) em cada série de preços. A hipótese nula do teste DF é que a série é não-estacionária, portanto neste primeiro teste queremos que a hipótese nula não seja rejeitada.
 
@@ -330,11 +346,11 @@ Para aplicar o teste DF, precisamos primeiro calcular os valores defasados (`lag
 
 $$\Delta P_{t} = \alpha + \beta P_{t-1} + \epsilon$$
 
-Após fazer a regressão, o valor chave a ser usado para determinar se a série é não estacionária é o [`t-statistic`](https://dss.princeton.edu/online_help/analysis/interpreting_regression.htm) do coeficente $\beta$ obtido, que é o valor do coeficiente dividido pelo desvio padrão. Pode ser pensado como uma medida da precisão com que o coeficiente de regressão é medido. Se um coeficiente é grande comparado ao seu erro padrão, provavelmente é diferente de 0. Esse valor então é confrontado contra uma tabela de referência, que determinará se a série é estacionária ou não. 
+Após fazer a regressão, o valor chave a ser usado para determinar se a série é não estacionária é o [`t-statistic`](https://dss.princeton.edu/online_help/analysis/interpreting_regression.htm) do coeficiente $\beta$ obtido, que é o valor do coeficiente dividido pelo desvio padrão. Pode ser pensado como uma medida da precisão com que o coeficiente de regressão é medido. Se um coeficiente é grande comparado ao seu erro padrão, provavelmente é diferente de 0. Esse valor então é confrontado contra uma tabela de referência, que determinará se a série é estacionária ou não. 
 
 ![Dickey-Fuller Table](./img/dickey-fuller-table.png)
 
-O valor de referência é sensível ao número de pontos usados na regressão. Assim sendo, vamos fazer o fit da regressão linear e obter os valores de referência desta regressão
+O valor de referência é sensível ao número de pontos usados na regressão. Assim sendo, vamos fazer o _fit_ da regressão linear e obter os valores de referência desta regressão
 
 
 ```r
@@ -365,7 +381,7 @@ df.tickers %>%
            lm.anova  = map(lm.anova, tidy)) -> stat.test
 ```
 
-Então para cada um dos ticker, temos um dataset com as cotações, o modelo fitado, dados dos coeficientes, análise de variação e qualidade do fit. Vamos olhar o valor para cada uma das séries.
+Então para cada um dos _ticker_, temos um _dataset_ com as cotações, o modelo fitado, dados dos coeficientes, análise de variação e qualidade do _fit_. Vamos olhar o valor para cada uma das séries.
 
 
 
@@ -601,7 +617,7 @@ Para QUAL3 encontramos o valor de **-1.29** e para RENT3 encontramos **-1.871** 
 
 ## Teste de Cointegração (metodologia de Engle-Granger)
 
-A metodologia de Engle-Granger consiste em dois passos: primeiro fazemos uma regressão linear de uma série temporal contra a outra. Em seguida, aplicamos um teste de estacionariedade (como por exemplo o teste de Dickey-Fuller) nos resíduos desta regressão. Se os resíduos forem estacionários, isto significa que encontramos a combinação linear tal que as duas séries são cointegradas.
+A metodologia de [Engle-Granger](https://www.empiwifo.uni-freiburg.de/lehre-teaching-1/winter-term/makrookonometrie/methodology.pdf) consiste em dois passos: primeiro fazemos uma regressão linear de uma série temporal contra a outra. Em seguida, aplicamos um teste de estacionariedade (como por exemplo o teste de Dickey-Fuller) nos resíduos desta regressão. Se os resíduos forem estacionários, isto significa que encontramos a combinação linear tal que as duas séries são cointegradas.
 
 Então vamos avaliar a combinação linear entre QUAL3 e RENT3
 
@@ -1023,7 +1039,7 @@ Desta vez, o `t-stat` obtido foi de **-4.603**, muito além (em módulo) dos val
 
 ### Spread
 
-O gráfico abaixo apresenta a evolução do spread ao longo do tempo, com duas bandas representando -2 e 2 vezes o desvio padrão dos resíduos. Vemos que, apesar de os resíduos apresentarem certa persistência, comportam-se de maneira aparentemente desejável: flutuam razoavelmente ao redor da média, visitando-a com certa frequência. 
+O gráfico abaixo apresenta a evolução do _spread_ ao longo do tempo, com duas bandas representando -2 e 2 vezes o desvio padrão dos resíduos. Vemos que, apesar de os resíduos apresentarem certa persistência, comportam-se de maneira aparentemente desejável: flutuam razoavelmente ao redor da média, visitando-a com certa frequência. 
 
 
 ```r
@@ -1412,10 +1428,11 @@ Cabe lembrar que não acrescentamos os custos de operação, do aluguel de açõ
 
 ## Conclusão
 
-Reprodizimos neste [R-Notebook](https://rmarkdown.rstudio.com/r_notebooks) o passo-a-passo para encontrar ativos financeiros cointegrados e identificar os pontos de entrada de operações Long e Short e também conseguimos avaliar os resultados dessa estratégida de investimento. 
+No contexto de operações com pares de ativos (_pair trading_), a existência de uma relação de cointegração entre as séries de preços de dois ativos significa que pode ser possível realizar operações lucrativas de arbitragem. Reproduzimos neste [R-Notebook](https://rmarkdown.rstudio.com/r_notebooks) o passo-a-passo para encontrar ativos financeiros cointegrados e identificar os pontos de entrada de operações Long e Short, bem como,  avaliar os resultados dessa estratégia de investimento num modelo simplificado. 
 
 ## Referências
 
 1. Moura, Guilherme V. e Caldeira, João F. - **Seleção de uma Carteira de Pares de Ações Usando Cointegração: Uma Estrategia de Arbitragem Estatística** - https://www.scribd.com/document/237462625/4785-19806-1-PB
 1. Caldeira, João F. - **Arbitragem Estatística, Estratégia Long-Short Pairs Trading, Abordagem com Cointegração Aplicada ao Mercado de Ações Brasileiro** - http://www.anpec.org.br/revista/vol14/vol14n1p521_546.pdf
 1. [Blog do Dr. Nickel](https://drnickel.wordpress.com/) - **Long-Short através de Cointegração** – [Parte 1](https://drnickel.wordpress.com/2015/03/15/long-short-atraves-de-cointegracao-parte-1/), [Parte 2](https://drnickel.wordpress.com/2015/03/15/long-short-atraves-de-cointegracao-parte-2/), [Parte 3](https://drnickel.wordpress.com/2015/04/03/long-short-atraves-de-cointegracao-parte-3/) e [Parte 4](https://drnickel.wordpress.com/2016/11/05/long-short-atraves-de-cointegracao-parte-4/)
+1. [QuantStart](https://www.quantstart.com/) - Cointegrated Time Series Analysis for Mean Reversion Trading with R - https://www.quantstart.com/articles/Cointegrated-Time-Series-Analysis-for-Mean-Reversion-Trading-with-R
