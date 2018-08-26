@@ -8,20 +8,29 @@ output:
   pdf_document: default
 ---
 
-Operações Long-Short por Cointegração é uma estratégia de investimento em ativos que consiste em ...este notebook refaz o passo-a-passo nas análises estatísticas necessárias para esse tipo de operação
+Operações Long-Short por Cointegração é uma estratégia de investimento em ativos que consiste em encontrar pares de ações (índices ou comódities) que mantém um padrão de comportamento estável e previsível (equilíbrio estacionário) com variações de curto prazo que permita ser explorado em operações de Long (compra) e Short (venda) do par. Este R-Notebook refaz o passo-a-passo nas análises estatísticas necessárias para detectar e operação essa estratégia de mercado.
 
 <!--more-->
 
 ## Introdução
 
-Operações Long-Shortsão operações em que se compra e vende ao mesmo tempo ativos, carteiras, índices, etc. 
+A idéia tradicional de uma reversão de "_Pair Trading_" é encontrar dois ativos distintos, compartilhando fatores subjacentes que afetam seus movimentos, por exemplo, McDonald's e Burger King. Os preços das ações de longo prazo provavelmente estarão em equilíbrio devido aos amplos fatores de mercado que afetam a produção e o consumo de hambúrguer. Uma interrupção de curto prazo para um indivíduo no par, como uma interrupção na cadeia de fornecimento que afeta apenas o McDonald's, levaria a um deslocamento temporário em seus preços relativos. 
 
-E como se faz isso? 1º) Identificar uma relação histórica entre dois ativos, ou seja, quando um sobe o outro sobe, quando um cai o outro cai (em termos percentuais fica fácil); 2º) Visualizar um momento em que há uma divergência neste percentual entre os dois ativos; 3º) Compra A e vende B (aluga e vende); 4º) Ao retornar para o percentual histórico desejado desfaz a operação, ou seja, compra B e vende A.
-O idela ao se fazer o L/S é que ele seja feito no mesmo financeiro (L/S neutro). Neste caso, não há a preocupação se a bolsa sobe ou desce, o que importa é a relação percentual, pois vai se estar atuando nas duas pontas (compra e venda). Além disso, praticamente não há desembolso financeiro, pois o valor da venda do ativo alugado será utilizado para a compra (há apenas a margem da CBLC ou da corretora (se for maior). E ainda dá prá alavancar a carteira.
+Isso significa que uma negociação de curto prazo realizada nesse ponto de interrupção deve se tornar lucrativa, pois as duas ações retornam ao seu valor de equilíbrio assim que a interrupção for resolvida. 
 
-No contexto de operações com pares de ativos (pairs trading), a existência de uma relação de cointegração entre as séries de preços de dois ativos significa que pode ser possível realizar operações lucrativas de arbitragem.
+Encontrar pares de ativos ou índices que se comportem desta maneira possibilita abrir operações Long (compra) e short (venda) simultâneas quando os ativos se "afastam" momentaneamente do movimento conjunto, e se encerra quando elas retornam para o padrão. Ganha-se então com a variação da diferença (ou a distância) entre os dois.
 
 ## Análise de Cointegração usando R
+
+Análise de Cointegração e Operação Long-Short consiste sumariamente em:
+
+1. Identificar uma relação histórica entre dois ativos, ou seja, quando um sobe o outro sobe, quando um cai o outro cai (em termos percentuais fica fácil); 
+1. Visualizar um momento em que há uma divergência neste percentual entre os dois ativos; 
+1. Compra A e vende B (aluga e vende); 
+1. Ao retornar para o percentual histórico desejado desfaz a operação, ou seja, compra B e vende A.
+
+O idela ao se fazer o Long/Short é que ele seja feito no mesmo financeiro (_cash-neutro_). Neste caso, não há a preocupação se a bolsa sobe ou desce, o que importa é a relação percentual, pois vai se estar atuando nas duas pontas (compra e venda). Além disso, praticamente não há desembolso financeiro, pois o valor da venda do ativo alugado será utilizado para a compra (há apenas a margem da CBLC ou da corretora (se for maior). E ainda dá prá alavancar a carteira.
+
 
 ```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
 # default behavior for chunks
@@ -40,7 +49,7 @@ Muitos dos textos explicativos aqui foram retirados (ou fortemente baseados) na 
 1. [Long-Short através de Cointegração – Parte 3](https://drnickel.wordpress.com/2015/04/03/long-short-atraves-de-cointegracao-parte-3/)
 1. [Long-Short através de Cointegração – Parte 4](https://drnickel.wordpress.com/2016/11/05/long-short-atraves-de-cointegracao-parte-4/)
 
-### Dataset:  QUAL3 e RENT3
+## Dataset:  QUAL3 e RENT3
 
 No poste ele faz faz uma análise dos ativos [**QUAL3** - QUALICORP ON](https://www.infomoney.com.br/qualicorp-qual3) e [**RENT3** - Localiza ON](https://www.infomoney.com.br/localiza-rent3) usando uma [planilha excel](https://drnickel.files.wordpress.com/2015/04/exemplos-cointegracao-qual3_rent32.xlsx), neste notebook refaço o procedimento usando R. Para garantir que os resultados obtidos em ambas sejam os mesmos usaremos exatamente os mesmo dados que constam na planilha.
 
@@ -526,10 +535,11 @@ Cabe lembrar que não acrescentamos os custos de operação, do aluguel de açõ
 
 ## Conclusão
 
-Reprodizimos neste [R-Notebook](https://rmarkdown.rstudio.com/r_notebooks) o passo-a-passo para encontrar ativos financeiros cointegrados e identificar os pontos de entrada de operações Long e Short e também conseguimos avaliar os resultados dessa estratégida de investimento. 
+No contexto de operações com pares de ativos (pairs trading), a existência de uma relação de cointegração entre as séries de preços de dois ativos significa que pode ser possível realizar operações lucrativas de arbitragem. Reprodizimos neste [R-Notebook](https://rmarkdown.rstudio.com/r_notebooks) o passo-a-passo para encontrar ativos financeiros cointegrados e identificar os pontos de entrada de operações Long e Short, bem como,  avaliar os resultados dessa estratégida de investimento num modelo simplificado. 
 
 ## Referências
 
 1. Moura, Guilherme V. e Caldeira, João F. - **Seleção de uma Carteira de Pares de Ações Usando Cointegração: Uma Estrategia de Arbitragem Estatística** - https://www.scribd.com/document/237462625/4785-19806-1-PB
 1. Caldeira, João F. - **Arbitragem Estatística, Estratégia Long-Short Pairs Trading, Abordagem com Cointegração Aplicada ao Mercado de Ações Brasileiro** - http://www.anpec.org.br/revista/vol14/vol14n1p521_546.pdf
 1. [Blog do Dr. Nickel](https://drnickel.wordpress.com/) - **Long-Short através de Cointegração** – [Parte 1](https://drnickel.wordpress.com/2015/03/15/long-short-atraves-de-cointegracao-parte-1/), [Parte 2](https://drnickel.wordpress.com/2015/03/15/long-short-atraves-de-cointegracao-parte-2/), [Parte 3](https://drnickel.wordpress.com/2015/04/03/long-short-atraves-de-cointegracao-parte-3/) e [Parte 4](https://drnickel.wordpress.com/2016/11/05/long-short-atraves-de-cointegracao-parte-4/)
+1. [QuantStart](https://www.quantstart.com/) - Cointegrated Time Series Analysis for Mean Reversion Trading with R - https://www.quantstart.com/articles/Cointegrated-Time-Series-Analysis-for-Mean-Reversion-Trading-with-R
