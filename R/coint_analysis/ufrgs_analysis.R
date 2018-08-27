@@ -1,6 +1,8 @@
 library(tidyverse)
 library(lubridate)
 library(BatchGetSymbols)
+library(broom)
+library(tseries)
 
 # range da analise
 start.date <- ymd(20050101)
@@ -71,5 +73,39 @@ prices.validation <- prices %>%
 
 
 # trading pairs 
-i <- 1:nrow(test.cases)
-map(i)
+test.cases %>% 
+  select( ticker.a, ticker.b ) -> pairs
+
+# nest price by tickers
+prices.training %>% 
+  group_by(ticker) %>% 
+  nest() -> nested.prices
+
+# put toghether case and data
+pairs %>%
+  inner_join( nested.prices %>% set_names(c("ticker.a","prices.a")), by = "ticker.a" ) %>% 
+  inner_join( nested.prices %>% set_names(c("ticker.b","prices.b")), by = "ticker.b" ) %>% 
+  select(ticker.a, prices.a, ticker.b, prices.b) -> dtset
+
+
+# function para fazer o fit linear te dois ativos
+# price.adjusted.A = f(price.adjusted.B)
+fitLinModel <- function(a,b){
+  a %>%
+    select(ref.date, price.a = price.adjusted) %>%
+    inner_join(b %>% select(ref.date, price.b = price.adjusted), by="ref.date") %>% 
+    lm(price.a ~ price.b, .) %>% 
+    return()
+}
+
+# calculos
+dtset %>% 
+  # modelo linear (a=f(b))
+  mutate( model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel) ) %>% 
+  # estrutura resultados da regressao
+  mutate(
+    model.coefs  = map(model,tidy),    # coeficientes obtidos do modelo
+    model.glance = map(model, glance), # qualidade do fit
+    model.anova  = map(map(model,anova), tidy) # analise de variancia
+  )
+
