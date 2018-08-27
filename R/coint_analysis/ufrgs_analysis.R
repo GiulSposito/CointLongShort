@@ -107,5 +107,15 @@ dtset %>%
     model.coefs  = map(model,tidy),    # coeficientes obtidos do modelo
     model.glance = map(model, glance), # qualidade do fit
     model.anova  = map(map(model,anova), tidy) # analise de variancia
-  )
+  ) %>% 
+  mutate(
+    adf.test = suppressWarnings(map(model, function(m){
+      m$residuals %>% 
+        adf.test(.,"stationary",k=1) %>% 
+        tidy() %>% 
+        return()
+    }))
+  ) %>% 
+  unnest(adf.test, .drop = F) %>% 
+  View()
 
