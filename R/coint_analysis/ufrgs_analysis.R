@@ -113,9 +113,11 @@ dtset %>%
       m$residuals %>% 
         adf.test(.,"stationary",k=1) %>% 
         tidy() %>% 
+        select(-alternative, -method, -parameter) %>% 
+        set_names(paste0("adf.",names(.))) %>% 
         return()
     }))
   ) %>% 
-  unnest(adf.test, .drop = F) %>% 
-  View()
-
+  # compartion test
+  unnest(adf.test, .drop = T) %>%
+  inner_join(test.cases)
