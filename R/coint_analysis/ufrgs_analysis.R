@@ -3,6 +3,7 @@ library(lubridate)
 library(BatchGetSymbols)
 library(broom)
 library(tseries)
+library(urca)
 
 # range da analise
 start.date <- ymd(20050101)
@@ -98,6 +99,46 @@ fitLinModel <- function(a,b){
     return()
 }
 
+# aplica o teste de Dickey-Fuller
+testADF <- function(m) suppressWarnings({
+  m$residuals %>% 
+    adf.test(.,"stationary",k=1) %>% 
+    tidy() %>% 
+    select(-alternative, -method, -parameter) %>% 
+    set_names(paste0("adf.",names(.))) %>% 
+    return()
+})
+
+# aplica Dickey-Fuller usando o URCA package
+testURDF <- function(m){
+  m$residuals %>% 
+    ur.df(type="drift", lags=1) %>% 
+    return()
+}
+
+# devolve o cálculo de meia vida tirado do urca::ur.df
+urdfHalfLife <- function(urdf){
+  urdf %>% summary() -> m
+  half.life <- -log(2)/m@testreg$coefficients[2]
+  return(half.life)
+}
+
+# devolve o cálculo de meia vida tirado do tseries::adf.test
+calcHalfLife <- function(m){
+  tibble(y = m$residuals) %>% 
+    mutate(
+      y.lag   = dplyr::lag(y,1),
+      delta.y = c(NA,diff(y))
+    ) %>% 
+    filter( complete.cases(.) ) %>% 
+    lm(delta.y ~ y.lag, data=.) %>% 
+    summary() -> regress
+  
+  lambda  <- regress$coefficients[2]
+  half.life <- -log(2)/lambda
+  return(half.life)
+}
+
 # calculos
 dtset %>% 
   # modelo linear (a=f(b))
@@ -109,15 +150,11 @@ dtset %>%
     model.anova  = map(map(model,anova), tidy) # analise de variancia
   ) %>% 
   mutate(
-    adf.test = suppressWarnings(map(model, function(m){
-      m$residuals %>% 
-        adf.test(.,"stationary",k=1) %>% 
-        tidy() %>% 
-        select(-alternative, -method, -parameter) %>% 
-        set_names(paste0("adf.",names(.))) %>% 
-        return()
-    }))
-  ) %>% 
-  # compartion test
-  unnest(adf.test, .drop = T) %>%
-  inner_join(test.cases)
+    adf.test  = map(model, testADF),
+    urdf.test = map(model, testURDF)
+  ) -> x
+
+x[1,]$urdf.test[[1]] %>% summary()
+x[1,]$adf.test[[1]]
+
+
