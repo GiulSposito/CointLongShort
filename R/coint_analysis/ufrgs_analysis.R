@@ -139,6 +139,11 @@ calcHalfLife <- function(m){
   return(half.life)
 }
 
+# calcula a largura do canal (2*spread)
+spreadSize <- function(m){
+  return(2*sd(m$residuals))
+}
+
 # calculos
 dtset %>% 
   # modelo linear (a=f(b))
@@ -150,11 +155,20 @@ dtset %>%
     model.anova  = map(map(model,anova), tidy) # analise de variancia
   ) %>% 
   mutate(
-    adf.test  = map(model, testADF),
-    urdf.test = map(model, testURDF)
-  ) -> x
+    adf.test  = map(model, testADF),  # Teste ADF do pacote tseries
+    urdf.test = map(model, testURDF)  # Teste de DF do pacote urca
+  ) %>%
+  mutate(
+    spread.size    = map(model,spreadSize) %>% unlist(),       # tamanho do spread 2*sd dos residuos
+    half.life      = map(model, calcHalfLife) %>% unlist(),    # half-life calculado "na mao"
+    half.life.urdf = map(urdf.test, urdfHalfLife) %>% unlist() # half-life calculado a partir do urca::ur.df
+  ) %>% 
+  mutate(
+    urdf = map(urdf.test, function(df) {df@teststat %>% as.tibble()})
+  ) %>% 
+  unnest(adf.test, .drop=F) %>% 
+  unnest(urdf, .drop=F) %>% 
+  select(ticker.a, ticker.b, spread.size, half.life, half.life.urdf, adf.statistic, adf.p.value, tau2, phi1)
 
-x[1,]$urdf.test[[1]] %>% summary()
-x[1,]$adf.test[[1]]
 
 
