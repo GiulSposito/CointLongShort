@@ -86,7 +86,7 @@ library(urca)
 library(magrittr)
 
 # adf.test não esta funcionando?
-ht <- adf.test(AirPassengers,k=1) 
+ht <- adf.test(AirPassengers,c("stationary"),k=1) 
 ht <- adf.test(diff(log(AirPassengers)),c("stationary"),k=1) 
 
 # ur.df está!!
@@ -97,6 +97,7 @@ ht <- ur.df(diff(log(AirPassengers)), lags=1)
 ht <- ur.pp(AirPassengers,type="Z-tau",model="constant")
 ht <- ur.pp(AirPassengers,type="Z-alpha",model="constant")
 
+?adf.test
 
 # ARIMA MODELS
 acf(AirPassengers) # long decais from auto-covariation
