@@ -6,7 +6,7 @@ library(tidyverse)
 library(lubridate)
 
 tickers <- c("BBAS3", "CSAN3") %>% paste0(".SA")
-start <- dmy(04042013)
+start <- dmy(04052013)
 end   <- dmy(02042014)
 
 dataset <- BatchGetSymbols(
@@ -33,25 +33,41 @@ ativos %>%
   geom_point() +
   theme_light()
 
-regr <- lm(BBAS3~CSAN3, ativos)
+regr <- lm(BBAS3~CSAN3+ref.date, ativos)
 
 regr %>% 
   summary()
 
-tibble(
-  ref.date = ativos$ref.date,
-  coint    = regr$residuals
-) %>% 
-  ggplot(aes(x=ref.date, y=coint)) +
-  geom_line() +
-  theme_light()
 
-
-
+library(urca)
 df <- ur.df(regr$residuals, lags=1)
 
 df@cval
 df@teststat
+
+tibble(
+  ref.date = ativos$ref.date,
+  coint    = regr$residuals,
+  ramp     = abs(coint/var)
+) %>% 
+  ggplot(aes(x=ref.date, y=coint)) +
+  geom_line(aes(color=ramp), size=1) +
+  geom_hline(yintercept = 2*var, color="red", size=1, linetype=2) +
+  geom_hline(yintercept = -2*var, color="green", size=1, linetype=2) +
+  scale_color_continuous(low="red",high="green") +
+  theme_light()
+
+?geom_hline
+
+var <- sd(regr$residuals)
+
+ggplot()
+
+library(tseries)
+adf.test(regr$residuals,k=1)
+
+calcHalfLife(regr)
+  
 
 
 # ter dickey-fuller acima de 95% -> OK
