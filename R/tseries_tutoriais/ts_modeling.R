@@ -48,6 +48,8 @@
 # if null hypothesis gets rejected ==> stationary
 
 
+### Test Case
+
 # data
 data(AirPassengers)
 class(AirPassengers)
@@ -71,3 +73,37 @@ plot(aggregate(AirPassengers, FUN = mean))
 
 # by month
 boxplot(AirPassengers~cycle(AirPassengers))
+
+# original data
+plot(AirPassengers) # non stationary - non constant variation
+plot(log(AirPassengers)) # constant variation 
+plot(diff(log(AirPassengers))) # remove mean --> stationary?
+
+# dickey-fuller
+library(tseries)
+library(broom)
+library(urca)
+library(magrittr)
+
+# adf.test não esta funcionando?
+ht <- adf.test(AirPassengers,k=1) 
+ht <- adf.test(diff(log(AirPassengers)),c("stationary"),k=1) 
+
+# ur.df está!!
+ht <- ur.df(AirPassengers, lags=1)
+ht <- ur.df(diff(log(AirPassengers)), lags=1) 
+
+# Phillips-Perron unit root test
+ht <- ur.pp(AirPassengers,type="Z-tau",model="constant")
+ht <- ur.pp(AirPassengers,type="Z-alpha",model="constant")
+
+
+# ARIMA MODELS
+acf(AirPassengers) # long decais from auto-covariation
+acf(diff(log(AirPassengers)))   # q = 1 -> previous from inverion signal
+pacf(AirPassengers) # partial autocorrelations
+pacf(diff(log(AirPassengers)))  # p = 1
+
+fit <- arima(log(AirPassengers), c(0,1,1), seasonal = list(order=c(0,1,1), period=12))
+pred <- exp(1) ^ predict(fit, n.ahead = 12*10)$pred
+ts.plot(AirPassengers, pred, lty=c(1,3))
