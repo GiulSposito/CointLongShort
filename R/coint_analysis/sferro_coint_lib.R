@@ -122,13 +122,26 @@ spreadSize <- function(m, desv.entrada=2, desv.saida=0){
   return(width*sd(m$residuals))
 }
 
+# resume os testes de Dickey Fuller
 adfSummary <- function(adf.table){
   
+  # ordena pelo tamanho
   adf.table %>% 
     arrange(size) %>% 
     select(-urdf) -> adf.results
   
-  adf100.adf  <- adf.results[1, ]$df
-  adf100.rslt
-  
+  # separa estatisticas do menor periodo
+  # dos ultimos 3
+  # de todos
+  tibble(
+    adfL1.adf  = adf.results[1, ]$df,
+    adfL1.lvl  = adf.results[1, ]$coint.level,
+    adfL1.rslt = adf.results[1, ]$coint.result,
+    adfL3.adf  = adf.results[3,]$df,
+    adfL3.rslt = mean(adf.results[1:3,]$coint.result),
+    adfL8.adf  = adf.results[nrow(adf.results),]$df,
+    adfL8.rslt = mean(adf.results$coint.result),
+    adfL8.per  = nrow(adf.results)
+  ) %>% 
+    return()
 }

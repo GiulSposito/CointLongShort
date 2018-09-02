@@ -66,7 +66,7 @@ prices %>%
 # antes do ultimo quadrimestre
 prices.training <- prices %>% 
   filter(ref.date <  ymd(20090901),
-         ref.date >= ymd(20080801))
+         ref.date >= ymd(20080825))
 
 # ultimo quadrimestre 
 prices.validation <- prices %>% 
@@ -108,7 +108,13 @@ dtset %>%
     df.test     = map(model,checkDickeyFuller),
     meia.vida   = map_dbl(model, calcMeiaVida),
     spread.size = map_dbl(model,spreadSize)
-  ) -> x
-  
+  ) %>% 
+  mutate(
+    adf.summary = map(df.test,adfSummary)
+  ) %>% 
+  unnest(adf.summary)  %>% 
+  select(-starts_with("prices"), -starts_with("model"), -df.test) %>% View()
+
+
 
 
