@@ -110,11 +110,25 @@ dtset %>%
     spread.size = map_dbl(model,spreadSize)
   ) %>% 
   mutate(
-    adf.summary = map(df.test,adfSummary)
+    adf.summary = map(df.test,adfSummary),
+    coef.summary = map(model.coefs,function(coefs){
+      coefs %>% 
+        select(term, estimate) %>% 
+        spread(key="term",value = "estimate") %>% 
+        set_names(c("coef.linear","coef.angular","coef.temporal")) %>% 
+        return()
+    })
   ) %>% 
-  unnest(adf.summary)  %>% 
-  select(-starts_with("prices"), -starts_with("model"), -df.test) %>% View()
+  unnest(adf.summary, coef.summary) %>%
+  select( -model.glance, -model.coefs, -model.anova, -df.test, -prices.a, -prices.b) %>%
+  filter( adfL1.rslt==T,
+          adfL3.rslt==1,
+          adfL3.rslt>=3/8 ) %>% 
+  arrange( desc(adfL3.rslt), desc(adfL8.rslt) ) %>% 
+  View()
 
 
-
+  
+  
+  
 
