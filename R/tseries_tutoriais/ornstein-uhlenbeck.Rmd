@@ -3,6 +3,8 @@ title: "Fit an ORNSTEIN-UHLENBECK process"
 output:
   html_document:
     df_print: paged
+    keep_md: yes
+    code_folding: show
 ---
 
 As we know, a Brownian motion is usually formulated as $$dx_t = mu*dt+sigma*dW_t$$ which is the continuous case of a random walk. In some cases, it is quite convenient to use this formulation to describe the characteristic of asset prices due to its highly unpredictable behavior.
