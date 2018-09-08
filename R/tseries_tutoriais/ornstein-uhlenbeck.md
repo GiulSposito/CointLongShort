@@ -65,12 +65,12 @@ ou.coe
 
 ```
 ##    theta1    theta2    theta3 
-## 0.0000000 0.5000864 0.8475483
+## 1.0000000 0.5003149 0.8150738
 ```
 
 In a second case we will simulate the OU process with parameters:
 
-$$dx_t = (1.2-1x)*dt + 0.3*dW_t$$ 
+$$dx_t = (0-2x)*dt + 0.5*dW_t$$ 
 $$x_0=2$$
 
 
@@ -79,8 +79,8 @@ spread2 <- sde.sim(t0 = 0,
                   T = 2,
                   X0 = 0,
                   N = 300,
-                  drift = expression(1.2-1*x),
-                  sigma = expression(0.3),
+                  drift = expression(0-2*x),
+                  sigma = expression(0.5),
                   sigma.x = expression(0))
 
 plot(spread2)
@@ -98,7 +98,7 @@ ou.coe
 
 ```
 ##    theta1    theta2    theta3 
-## 1.0105574 0.9585198 0.3099136
+## 0.0000000 2.0000000 0.4682851
 ```
 
 # Aplicação em ciências físicas

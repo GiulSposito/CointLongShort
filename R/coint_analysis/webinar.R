@@ -45,6 +45,9 @@ df <- ur.df(regr$residuals, lags=1)
 df@cval
 df@teststat
 
+var <- sd(regr$residuals)
+
+
 tibble(
   ref.date = ativos$ref.date,
   coint    = regr$residuals,
@@ -57,24 +60,41 @@ tibble(
   scale_color_continuous(low="red",high="green") +
   theme_light()
 
-?geom_hline
+?deltat
 
-var <- sd(regr$residuals)
+spread <- ts(regr$residuals, end=length(regr$residuals))
 
-ggplot()
+plot(spread)
 
-library(tseries)
-adf.test(regr$residuals,k=1)
-
-calcHalfLife(regr)
-  
+spread2 <- spread
 
 
-# ter dickey-fuller acima de 95% -> OK
-# em 3 de 6 períodos
-# 
+plot(spread2)
 
-seq(100, 250, 20) %>% 
-  
+ou.fit <- mle(ou.lik(spread2),
+              start=list(theta1=1,theta2=1,theta3=1),
+              method="L-BFGS-B",lower=c(0,1e-5,1e-3), upper=c(2,2,2))
+ou.coe <- coef(ou.fit)
+ou.coe  
 
+sigma <- ou.coe[2]
+mu    <- ou.coe[1]/ou.coe[2]
+sd(regr$residuals)
+ou.coe[3]
+1/sigma
 
+sde.sim(t0 = 1,
+        T = length(regr$residuals),
+        X0 = regr$residuals[1],
+        N = length(regr$residuals),
+        drift = expression(0.001152081-0.298470941*x),
+        sigma = expression(0.802541915),
+        sigma.x = expression(0)) -> x
+
+plot(x)
+plot(spread)
+
+f1 <- Vectorize(function(x) 5-3*x)
+f2 <- Vectorize(function(x) 3*((5/3)-x))
+f1(1:10)
+f2(1:10)

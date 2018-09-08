@@ -62,7 +62,7 @@ ou.coe
 
 In a second case we will simulate the OU process with parameters:
 
-$$dx_t = (1.2-1x)*dt + 0.3*dW_t$$ 
+$$dx_t = (0-2x)*dt + 0.5*dW_t$$ 
 $$x_0=2$$
 
 ```{r fitting2}
@@ -70,8 +70,8 @@ spread2 <- sde.sim(t0 = 0,
                   T = 2,
                   X0 = 0,
                   N = 300,
-                  drift = expression(1.2-1*x),
-                  sigma = expression(0.3),
+                  drift = expression(0-2*x),
+                  sigma = expression(0.5),
                   sigma.x = expression(0))
 
 plot(spread2)
@@ -82,6 +82,19 @@ ou.fit <- mle(ou.lik(spread2),
 ou.coe <- coef(ou.fit)
 ou.coe
 ```
+
+### Original Format
+
+Converting $(\theta_1,\theta_2,\theta_3)$ notation to $(\theta, \mu, \sigma)$ notation.
+
+$$\theta = \theta_2$$
+$$\mu=\theta_1/\theta_2$$
+
+$$\sigma=\theta_3$$
+
+$$ (\theta_2)*(\theta_1/\theta_2 - (\theta_2/\theta_2)*x_t) * dt + \theta_3 * dWt $$
+
+
 
 # Aplicação em ciências físicas
 
