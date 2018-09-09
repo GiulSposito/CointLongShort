@@ -60,6 +60,8 @@ tibble(
   scale_color_continuous(low="red",high="green") +
   theme_light()
 
+
+
 ?deltat
 
 spread <- ts(regr$residuals, end=length(regr$residuals))
@@ -70,6 +72,16 @@ spread2 <- spread
 
 
 plot(spread2)
+
+
+ou.lik <- function(x) {
+  function(theta1,theta2,theta3) {
+    n <- length(x)
+    dt <- deltat(x)
+    -sum(dcOU(x=x[2:n], Dt=dt, x0=x[1:(n-1)],
+              theta=c(theta1,theta2,theta3), log=TRUE))
+  }
+}
 
 ou.fit <- mle(ou.lik(spread2),
               start=list(theta1=1,theta2=1,theta3=1),
