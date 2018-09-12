@@ -24,8 +24,8 @@ cointAnalysis:
   coef.ang
   coef.tem
   coef.lin
-  date
-  value
+  df.value
+  df.level
   
 
   

@@ -12,8 +12,6 @@ dtfm <- prices
 periods <- 40
 
 
-
-
 dates <- dtfm$ref.date
 steps <- 1:(length(dates)-periods)
 
