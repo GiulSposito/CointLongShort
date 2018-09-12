@@ -2,6 +2,7 @@
 library(tidyselect)
 library(lubridate)
 library(broom)
+library(urca)
 
 # funcoes auxiliares do pipe
 source("./R/pipeline/pipeline_helper.R") 
@@ -41,11 +42,27 @@ pairs %>%
 
 # calculos p/ 
 dtset %>% 
-  # modelo linear (a=f(b))
-  mutate( model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel, p=periods) ) %>% 
+  # modelo linear (a=f(b,t))
+  mutate( 
+    model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel, p=periods),
+    mdata = map(model, lmMetaData)
+  ) %>% 
   # estrutura resultados da regressao
   mutate(
     model.coefs  = map(model,tidy),    # coeficientes obtidos do modelo
     model.glance = map(model, glance), # qualidade do fit
     model.anova  = map(map(model,anova), tidy) # analise de variancia
-  )
+  ) %>% 
+  # dickeyFullerTest, half-life, channel size
+  mutate(
+    adf = map(model, dickeyFuller),
+    adf.results = map(adf, tidyADF),
+    flat.coefs = map(model.coefs,flatTidyCoefs),
+    half.life = map_dbl(model,calcMeiaVida)
+  ) %>% 
+  unnest(mdata, model.glance, flat.coefs, adf.results) %>%
+  select(ticker.a, ticker.b, adf=adf1, coint.level, coint.result,
+         periods, half.life, spread.size, starts_with("coef"),
+         curr.ref.date, curr.residual, curr.z.score, sd) %>% View()
+
+names(x)
