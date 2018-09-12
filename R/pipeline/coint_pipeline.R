@@ -55,14 +55,15 @@ dtset %>%
   ) %>% 
   # dickeyFullerTest, half-life, channel size
   mutate(
-    adf = map(model, dickeyFuller),
-    adf.results = map(adf, tidyADF),
-    flat.coefs = map(model.coefs,flatTidyCoefs),
-    half.life = map_dbl(model,calcMeiaVida)
+    adf.test    = map(model, dickeyFuller),
+    adf.results = map(adf.test, tidyADF),
+    flat.coefs  = map(model.coefs,flatCoefTidy),
+    flat.anova  = map(model.anova, flatTidy),
+    half.life   = map_dbl(model,calcMeiaVida)
   ) %>% 
   unnest(mdata, model.glance, flat.coefs, adf.results) %>%
-  select(ticker.a, ticker.b, adf=adf1, coint.level, coint.result,
-         periods, half.life, spread.size, starts_with("coef"),
+  select(ticker.a, ticker.b, adf, coint.level, coint.result,
+         periods, half.life, spread.size, linear.estimate, angular.estimate, temporal.estimate,
          curr.ref.date, curr.residual, curr.z.score, sd) %>% View()
 
-names(x)
+

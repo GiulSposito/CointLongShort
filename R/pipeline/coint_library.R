@@ -48,36 +48,36 @@ lmMetaData <- function(m, .desv.entrada=2){
 }
 
 # extrai os coeficientes 
-flatTidyCoefs <- function(tidyCoef){
-
-  tidyCoef %>% 
-    select(term,estimate) %>% 
-    spread(term,estimate) %>% 
-    set_names(c("coef.lin", "coef.ang", "coef.tmp")) -> coefs
-  
-  tidyCoef %>% 
-    select(term,std.error) %>% 
-    spread(term,std.error) %>% 
-    set_names(c("std.error.lin", "std.error.ang", "std.error.tmp")) -> std.errors
-
-  tidyCoef %>% 
-    select(term,statistic) %>% 
-    spread(term,statistic) %>% 
-    set_names(c("statistic.lin", "statistic.ang", "statistic.tmp")) -> statistics
-  
-  tidyCoef %>% 
-    select(term,p.value) %>% 
-    spread(term,p.value) %>% 
-    set_names(c("p.value.lin", "p.value.ang", "p.value.tmp")) -> p.values
-  
-  bind_cols(
-    coefs,
-    std.errors,
-    statistics,
-    p.values
-  ) %>% return()
-  
-}
+# flatTidyCoefs <- function(tidyCoef){
+# 
+#   tidyCoef %>% 
+#     select(term,estimate) %>% 
+#     spread(term,estimate) %>% 
+#     set_names(c("coef.lin", "coef.ang", "coef.tmp")) -> coefs
+#   
+#   tidyCoef %>% 
+#     select(term,std.error) %>% 
+#     spread(term,std.error) %>% 
+#     set_names(c("std.error.lin", "std.error.ang", "std.error.tmp")) -> std.errors
+# 
+#   tidyCoef %>% 
+#     select(term,statistic) %>% 
+#     spread(term,statistic) %>% 
+#     set_names(c("statistic.lin", "statistic.ang", "statistic.tmp")) -> statistics
+#   
+#   tidyCoef %>% 
+#     select(term,p.value) %>% 
+#     spread(term,p.value) %>% 
+#     set_names(c("p.value.lin", "p.value.ang", "p.value.tmp")) -> p.values
+#   
+#   bind_cols(
+#     coefs,
+#     std.errors,
+#     statistics,
+#     p.values
+#   ) %>% return()
+#   
+# }
 
 # devolve o cálculo de meia vida tirado do tseries::adf.test
 calcMeiaVida <- function(m, .desv.entrada=2){
@@ -138,6 +138,28 @@ tidyADF <- function(adf){
     ) %>% 
     return()
   
+}
+
+
+flatTidy <- function(.anova){
+  result <- map(
+    .anova$term,  
+    function(.t,.a){
+      .a %>% 
+        filter(term==.t) %>% 
+        set_names(paste0(.t,".",names(.))) %>% 
+        select(-1) %>% 
+        return()
+    }, .a=.anova)
+  
+  bind_cols(result) %>% 
+    return()
+}
+
+flatCoefTidy <- function(.coefs){
+  .coefs$term <- c("linear","angular","temporal")
+  flatTidy(.coefs) %>% 
+    return()
 }
 
 # 
