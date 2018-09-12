@@ -1,5 +1,5 @@
 # function para fazer o fit linear te dois ativos
-# price.adjusted.A = f(price.adjusted.B)
+# price.adjusted.A = f(price.adjusted.B, ref.date)
 fitLinModel <- function(a,b){
   a %>%
     select(ref.date, price.a = price.adjusted) %>%
@@ -8,6 +8,8 @@ fitLinModel <- function(a,b){
     lm(price.a ~ price.b + ref.date, .) %>% 
     return()
 }
+
+
 
 # apply DickeyFuller to 8 distinct periods
 checkDickeyFuller <- function(m){
