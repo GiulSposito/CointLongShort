@@ -1,46 +1,64 @@
-library(psych)
-
-n <- 30 
-r <- seq(0,.9,.1) 
-rc <- matrix(r.con(r,n),ncol=2) 
-test <- r.test(n,r)
-
-
-plot(rc)
-
-
-cor(rc)
-
 library(tidyverse)
 library(lubridate)
+library(broom)
 
 dt <- read_csv("./data/sferro_cenario.csv") %>% 
   filter(complete.cases(.)) %>% 
   mutate( DATA = dmy(DATA) ) %>% 
-  arrange(desc(DATA))
+  arrange(DATA) %>% 
+  tail(100)
 
 dt %>% 
-  arrange(desc(DATA)) %>% 
   mutate(
-    KROT3.LAG = lag(KROT3),
-    BEEF3.LAG = lag(BEEF3)
-  ) %>%
-  mutate(
-    KROT3.PRP = log( KROT3.LAG / KROT3 ),
-    BEEF3.PRP = log( BEEF3.LAG / BEEF3 )
-  ) %>%
-  filter(complete.cases(.)) %>%
-  slice(n()-100:n()) %>%
-  select(KROT3.PRP, BEEF3.PRP) %>%
-  as.matrix() %>% 
-  r.test(n=nrow(.),r)
+    KROT3 = log(KROT3/lag(KROT3)),
+    BEEF3 = log(BEEF3/lag(BEEF3))
+  ) %>% 
+  filter(complete.cases(.)) -> dtl
+
+ggplot(dtl, aes(x=KROT3, y=BEEF3)) +
+  geom_point(color="blue") +
+  geom_smooth(method="lm", se=F, fullrange=T)
+
+
+corr <- cor.test(x=dtl$KROT3, y=dtl$BEEF3, method = "pearson", conf.level = .999)
+
+tidy(corr)
+
+r <- corr$estimate
+
+z <- 0.5 * log((1+r)/(1-r))
+
+n <- nrow(dt)
+pr <- sqrt(1/(n-3))
+expected.z <- 0.5 * log((1+pr)/(1-pr))
+
+upper <- z + pr * 2.58 # 1.96 
+lower <- z - pr * 2.58 # 1.96
   
-  
+conf.upper <- (exp(2 * upper) - 1) / (exp(2 * upper) + 1)
+conf.lower <- (exp(2 * lower) - 1) / (exp(2 * lower) + 1)
+c(conf.lower, conf.upper)
 
-  slice(n()-100:n()) %>% 
-  select(KROT3.PRP, BEEF3.PRP) %>% 
-  cor()
-
-
+corr$conf.int
 
 
+
+# Summary of Computations
+# 
+# 1. Compute the sample r.
+# 
+# 2. Use the r to z' table to convert the value of r to z'.
+# 
+# 3. Use a z table to find the value of z for the level of confidence desired.
+# 
+# 4. Compute: 
+# 
+#   4a. Lower limit = z' - (z)(σz')
+#                         
+#   4b. Upper limit = z' + (z)(σz')
+# 
+# 5. Use procedure the r to z' table to convert the lower and upper limits from z' to r 
+#                                                 
+# Assumptions
+#   1. Each subject (observation) is sampled independently from each other subject.
+#   2. Subjects are sampled randomly.
