@@ -162,6 +162,59 @@ flatCoefTidy <- function(.coefs){
     return()
 }
 
+correlationAnalysis <- function(m){
+  
+  # obtem dados usado para fit do modelo
+  prices <- m$model %>% 
+    as.tibble()
+  
+  # estatisticas de correlacao direta
+  corr <- cor.test(prices$price.b, prices$price.a, conf.level = 0.99) %>% 
+    tidy() %>% 
+    select(-method,-alternative) %>% 
+    set_names(paste0("corr.",names(.)))
+  
+  # calculando correlacao de acordo com a planilha do ferro
+  log.prices <- prices %>% 
+    mutate(
+      price.a = log(price.a/lag(price.a)),
+      price.b = log(price.b/lag(price.b))
+    ) %>% 
+    filter(complete.cases(.))
+  
+  # correlacao dos logs dos pontos
+  r.fisher <- cor.test(log.prices$price.b, log.prices$price.a, conf.level = 0.99) %>% 
+    tidy() %>% 
+    select(-method,-alternative) %>% 
+    set_names(paste0("r.fisher.",names(.)))
+  
+  # transformando do r.space para o z.space (fisher)
+  r <- r.fisher$r.fisher.estimate
+  z <- 0.5 * log((1+r)/(1-r))
+  
+  # calculo dos limites
+  n <- nrow(prices)
+  sigma <- sqrt(1/(n-3))
+  upper <- z + sigma * 2.58 # 99% | 1.96 -> 95%
+  lower <- z - sigma * 2.58 # 99% | 1.96 -> 95%
+
+  # montando tibble do z.fisher
+  z.fisher <- tibble(
+    estimate  = z,
+    sigma     = sigma,
+    parameter = n, 
+    conf.low  = lower, # 99% | 1.96 -> 95%
+    conf.high = upper, # 99% | 1.96 -> 95%
+    eval.99   = z>=lower & z<=upper #,
+    # expected  =  0.5 * log((1+pr)/(1-pr)) 
+  ) %>% 
+    set_names(paste0("z.fisher.",names(.)))
+  
+  bind_cols(corr, r.fisher, z.fisher) %>% 
+    return()
+  
+}
+
 # 
 # # apply DickeyFuller to 8 distinct periods
 # checkDickeyFuller_old <- function(m){

@@ -1,5 +1,5 @@
 # setup
-library(tidyselect)
+library(tidyverse)
 library(lubridate)
 library(broom)
 library(urca)
@@ -59,11 +59,16 @@ dtset %>%
     adf.results = map(adf.test, tidyADF),
     flat.coefs  = map(model.coefs,flatCoefTidy),
     flat.anova  = map(model.anova, flatTidy),
-    half.life   = map_dbl(model,calcMeiaVida)
+    half.life   = map_dbl(model,calcMeiaVida),
+    corr = map(model, correlationAnalysis)
   ) %>% 
-  unnest(mdata, model.glance, flat.coefs, adf.results) %>%
+  unnest(mdata, model.glance, flat.coefs, adf.results, corr) -> x
+
+x %>% 
   select(ticker.a, ticker.b, adf, coint.level, coint.result,
-         periods, half.life, spread.size, linear.estimate, angular.estimate, temporal.estimate,
-         curr.ref.date, curr.residual, curr.z.score, sd) %>% View()
+         z.fisher.conf.low, z.fisher.estimate, z.fisher.conf.high, z.fisher.eval.99,
+         periods, half.life, spread.size, 
+         linear.estimate, angular.estimate, temporal.estimate,
+         curr.ref.date, curr.residual, sd, curr.z.score) %>% View()
 
 
