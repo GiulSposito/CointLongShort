@@ -55,37 +55,46 @@ lmMetaData <- function(m, .desv.entrada=2){
   ) %>% return()
 }
 
-# extrai os coeficientes 
-# flatTidyCoefs <- function(tidyCoef){
-# 
-#   tidyCoef %>% 
-#     select(term,estimate) %>% 
-#     spread(term,estimate) %>% 
-#     set_names(c("coef.lin", "coef.ang", "coef.tmp")) -> coefs
-#   
-#   tidyCoef %>% 
-#     select(term,std.error) %>% 
-#     spread(term,std.error) %>% 
-#     set_names(c("std.error.lin", "std.error.ang", "std.error.tmp")) -> std.errors
-# 
-#   tidyCoef %>% 
-#     select(term,statistic) %>% 
-#     spread(term,statistic) %>% 
-#     set_names(c("statistic.lin", "statistic.ang", "statistic.tmp")) -> statistics
-#   
-#   tidyCoef %>% 
-#     select(term,p.value) %>% 
-#     spread(term,p.value) %>% 
-#     set_names(c("p.value.lin", "p.value.ang", "p.value.tmp")) -> p.values
-#   
-#   bind_cols(
-#     coefs,
-#     std.errors,
-#     statistics,
-#     p.values
-#   ) %>% return()
-#   
-# }
+# faz a analise de "beta rotation"
+calcBetaRotation <- function(a,b,p,s=40){
+  
+  # prepara os dados para fazer o beta rotation
+  dtfm <- a %>%
+    select(ref.date, price.a = price.adjusted) %>%
+    inner_join(b %>% select(ref.date, price.b = price.adjusted), by="ref.date") %>%
+    arrange( ref.date ) 
+  
+  # intervalo em que o beta rotation sera feito 
+  data.range <- dtfm %>% 
+    slice((n()-p):n()) %>% # os 'p' periodos que cobrem a analise
+    pull(ref.date)
+  
+  # aplica regressao para cada data, selecionando "s" periodos anteriores
+  rotation <- lapply(data.range,
+                     function(.loopdate, .rotSize){
+                       dtfm %>% 
+                         filter(ref.date <= .loopdate) %>% #
+                         slice((n()-.rotSize):n()) %>%  # range do beta rotation (s periodos)
+                         lm(price.a ~ price.b + ref.date, .) %>% 
+                         tidy() %>% 
+                         mutate(term=c("linear","angular","temporal")) %>% 
+                         flatCoefTidy() %>% 
+                         mutate( ref.date=.loopdate ) %>% 
+                         return()
+                     },
+                     .rotSize=s) %>% bind_rows() 
+  
+  # monta tibble de resposta
+  tibble(
+    beta.rotation.ref.date = data.range[length(data.range)],
+    beta.rotation.n    = s,
+    beta.rotation.mu   = mean(rotation$angular.estimate, na.rm = T),
+    beta.rotation.sd   = sd(rotation$angular.estimate, na.rm = T),
+    beta.rotation.data = list(rotation)
+  ) %>% 
+    return()
+  
+}
 
 # devolve o cálculo de meia vida tirado do tseries::adf.test
 calcMeiaVida <- function(m, .desv.entrada=2){
@@ -222,118 +231,3 @@ correlationAnalysis <- function(m){
     return()
   
 }
-
-# 
-# # apply DickeyFuller to 8 distinct periods
-# checkDickeyFuller_old <- function(m){
-#   
-#   # checa se tem pontos os suficientes
-#   sample.size <- length(m$residuals)
-#   
-#   # vai testar o DF para 8 sequencias padrao
-#   c(seq(100, 220, 20),250) %>% 
-#     .[.<=sample.size] %>% # filtra se tem tamanho suficiente
-#     map(function(n,m){
-#       
-#       # para cada # de amostras na sequencia pega as ultimas N
-#       m$residuals %>% 
-#         tail(n) %>% 
-#         ur.df(lags = 1) -> df # aplica o DF
-#       
-#       # extrai critical values
-#       cval <- df@cval
-#       # resultado do df
-#       tstat <- df@teststat %>% as.vector()
-#       
-#       # converte em o critical values em um tibble
-#       tibble(
-#         pct = colnames(cval), # coluna com porcentagens
-#         val = as.vector(cval) # coluna com valores
-#       ) %>% 
-#         mutate(
-#           # transforma a porcentagem e numero
-#           pct = 1 - (pct %>% gsub("pct","",.) %>% as.numeric())/100,
-#           # testa qual passou
-#           pass = val <= tstat
-#         ) %>% 
-#         filter( pass==F ) %>% # filtra as falhas
-#         pull( pct ) %>% 
-#         max() -> coint.level # pega aultima falha
-#       
-#       # monta o tibble de resposta (1 linha)
-#       tibble(size = n) %>% # tamanho testado
-#         bind_cols(df@teststat %>% as.tibble() %>% set_names(c("df"))) %>% # resultado do df 
-#         bind_cols(df@cval %>% as.tibble()) %>% # Critical Values do test
-#         bind_cols(
-#           tibble(
-#             coint.level = coint.level,  # valor da % 
-#             coint.result = coint.level >= .95, # teste de aprovacao
-#             urdf = list(df) # o proprio DF
-#           )
-#         ) %>% 
-#         return()
-#     }, m=m) %>% 
-#     bind_rows() %>% 
-#     return()
-# }
-# 
-# # aplica o ADF por um determinado periodo
-# applyADF <- function(n,m){
-#   
-#   # pega os ultimos 
-#   m$residuals %>% 
-#     tail(n) %>% 
-#     ur.df(lags = 1) -> df
-#   
-#   cval <- df@cval
-#   tstat <- df@teststat %>% as.vector()
-#   
-#   tibble(
-#     pct = colnames(cval),
-#     val = as.vector(cval)
-#   ) %>% 
-#     mutate(
-#       pct = 1 - (pct %>% gsub("pct","",.) %>% as.numeric())/100,
-#       pass = val <= tstat
-#     ) %>% 
-#     filter( pass==F ) %>% 
-#     pull( pct ) %>% 
-#     max() -> coint.level
-#   
-#   tibble(size = n) %>%
-#     bind_cols(df@teststat %>% as.tibble() %>% set_names(c("df"))) %>% 
-#     bind_cols(df@cval %>% as.tibble()) %>% 
-#     bind_cols(
-#       tibble(
-#         coint.level = coint.level,
-#         coint.result = coint.level >= .95,
-#         urdf = list(df)
-#       )
-#     ) %>% 
-#     return()
-# }
-# 
-# 
-# # resume os testes de Dickey Fuller
-# adfSummary <- function(adf.table){
-#   
-#   # ordena pelo tamanho
-#   adf.table %>% 
-#     arrange(size) %>% 
-#     select(-urdf) -> adf.results
-#   
-#   # separa estatisticas do menor periodo
-#   # dos ultimos 3
-#   # de todos
-#   tibble(
-#     adfL1.adf  = adf.results[1, ]$df,
-#     adfL1.lvl  = adf.results[1, ]$coint.level,
-#     adfL1.rslt = adf.results[1, ]$coint.result,
-#     adfL3.adf  = adf.results[3,]$df,
-#     adfL3.rslt = mean(adf.results[1:3,]$coint.result),
-#     adfL8.adf  = adf.results[nrow(adf.results),]$df,
-#     adfL8.rslt = mean(adf.results$coint.result),
-#     adfL8.per  = nrow(adf.results)
-#   ) %>% 
-#     return()
-# }

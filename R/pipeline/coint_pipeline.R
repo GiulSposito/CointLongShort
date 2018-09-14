@@ -60,16 +60,17 @@ dtset %>%
     flat.coefs  = map(model.coefs,flatCoefTidy),
     flat.anova  = map(model.anova, flatTidy),
     half.life   = map_dbl(model,calcMeiaVida),
-    corr = map(model, correlationAnalysis)
+    corr = map(model, correlationAnalysis),
+    beta.rotation = map2(.x=prices.a, .y=prices.b, .f=calcBetaRotation, p=periods)
   ) %>% 
-  unnest(mdata, model.glance, flat.coefs, adf.results, corr) -> x
+  unnest(mdata, model.glance, flat.coefs, adf.results, corr, beta.rotation) -> x
 
 x %>% 
-  select(ticker.a, ticker.b, periods, adf, coint.level, coint.result,
-         z.fisher.conf.low, z.fisher.estimate, z.fisher.conf.high, z.fisher.eval.99,
-        half.life, spread.size, 
-         linear.estimate, angular.estimate, temporal.estimate,
-         ref.date.current, residual.current, z.score.current, sd,
-         ref.date.last, residual.last, z.score.last, ) %>% View()
+  select( ticker.a, ticker.b, periods, adf, coint.level, coint.result,
+          z.fisher.conf.low, z.fisher.estimate, z.fisher.conf.high, z.fisher.eval.99,
+          half.life, spread.size, linear.estimate, angular.estimate, temporal.estimate,
+          ref.date.current, residual.current, z.score.current, sd,
+          ref.date.last, residual.last, z.score.last, 
+          beta.rotation.mu, beta.rotation.sd) %>% View()
 
 
