@@ -31,6 +31,11 @@ lmMetaData <- function(m, .desv.entrada=2){
 
   # ultimo valor do dataset
   rsd %>%
+    filter(ref.date==max(ref.date)) -> rsd.current
+  
+  # penultimo
+  rsd %>%
+    filter(ref.date < rsd.current$ref.date) %>% 
     filter(ref.date==max(ref.date)) -> rsd.last
   
   # tibble de resposta
@@ -38,9 +43,12 @@ lmMetaData <- function(m, .desv.entrada=2){
     periods      = length(m$residuals),
     sd           = sd(m$residuals),
     spread.size  = .desv.entrada * sd(m$residuals),
-    curr.ref.date = rsd.last$ref.date,
-    curr.residual = rsd.last$residual,
-    curr.z.score  = rsd.last$z.score,
+    ref.date.current = rsd.current$ref.date,
+    residual.current = rsd.current$residual,
+    z.score.current  = rsd.current$z.score,
+    ref.date.last = rsd.last$ref.date,
+    residual.last = rsd.last$residual,
+    z.score.last  = rsd.last$z.score,
     z.score.center = attributes(z.score)$`scaled:center`,
     z.score.scale  = attributes(z.score)$`scaled:scale`,
     z.scores = list(rsd)

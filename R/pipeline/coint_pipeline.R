@@ -65,10 +65,11 @@ dtset %>%
   unnest(mdata, model.glance, flat.coefs, adf.results, corr) -> x
 
 x %>% 
-  select(ticker.a, ticker.b, adf, coint.level, coint.result,
+  select(ticker.a, ticker.b, periods, adf, coint.level, coint.result,
          z.fisher.conf.low, z.fisher.estimate, z.fisher.conf.high, z.fisher.eval.99,
-         periods, half.life, spread.size, 
+        half.life, spread.size, 
          linear.estimate, angular.estimate, temporal.estimate,
-         curr.ref.date, curr.residual, sd, curr.z.score) %>% View()
+         ref.date.current, residual.current, z.score.current, sd,
+         ref.date.last, residual.last, z.score.last, ) %>% View()
 
 
