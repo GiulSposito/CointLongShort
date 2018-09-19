@@ -17,6 +17,22 @@ dickeyFuller <- function(m){
     return()
 }
 
+# modela uma ARIMA dos residuos
+fitARIMA <- function(m, adf.res){
+  m$residuals %>% 
+    ts(frequency=20) %>%  # mensal: 20 pregoes
+    auto.arima(stationary=adf.res$coint.result) %>% 
+    return()
+}
+
+# extrai a ordem dos modelos
+extractArma <- function(ar.model){
+  ar.model$arma %>%
+    t() %>%  as.tibble() %>% 
+    set_names(c("AR","MA","sAR","sMA", "periods", "Diff","sDiff")) %>% 
+    return()
+}
+
 # get basic data from de model
 lmMetaData <- function(m, .desv.entrada=2){
 
@@ -189,7 +205,7 @@ correlationAnalysis <- function(m){
   corr <- cor.test(prices$price.b, prices$price.a, conf.level = 0.99) %>% 
     tidy() %>% 
     select(-method,-alternative) %>% 
-    set_names(paste0("corr.",names(.)))
+    set_names(names(.))
   
   # calculando correlacao de acordo com a planilha do ferro
   log.prices <- prices %>% 
