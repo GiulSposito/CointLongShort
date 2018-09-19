@@ -76,7 +76,8 @@ dtset %>%
 
 x %>% 
   select( ticker.a, ticker.b, periods, adf, coint.level, coint.result,
-          z.fisher.conf.low, z.fisher.estimate, z.fisher.conf.high, z.fisher.eval.99,
+          corr.z.fisher.conf.low, corr.z.fisher.estimate, corr.z.fisher.conf.high, 
+          corr.z.fisher.eval.99,
           half.life, spread.size, linear.estimate, angular.estimate, temporal.estimate,
           ref.date.current, residual.current, z.score.current, sd,
           ref.date.last, residual.last, z.score.last 
