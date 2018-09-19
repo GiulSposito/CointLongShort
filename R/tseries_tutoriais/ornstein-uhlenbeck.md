@@ -65,7 +65,7 @@ ou.coe
 
 ```
 ##    theta1    theta2    theta3 
-## 1.0000000 0.5003149 0.8150738
+## 1.0000000 0.5003772 0.7763900
 ```
 
 In a second case we will simulate the OU process with parameters:
@@ -97,9 +97,22 @@ ou.coe
 ```
 
 ```
-##    theta1    theta2    theta3 
-## 0.0000000 2.0000000 0.4682851
+##     theta1     theta2     theta3 
+## 0.01371461 2.00000000 0.50491420
 ```
+
+### Original Format
+
+Converting $(\theta_1,\theta_2,\theta_3)$ notation to $(\theta, \mu, \sigma)$ notation.
+
+$$\theta = \theta_2$$
+$$\mu=\theta_1/\theta_2$$
+
+$$\sigma=\theta_3$$
+
+$$ (\theta_2)*(\theta_1/\theta_2 - (\theta_2/\theta_2)*x_t) * dt + \theta_3 * dWt $$
+
+
 
 # Aplicação em ciências físicas
 
