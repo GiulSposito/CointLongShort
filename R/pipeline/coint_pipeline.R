@@ -1,8 +1,6 @@
 # setup
 library(tidyverse)
 library(lubridate)
-library(broom)
-library(urca)
 
 # funcoes auxiliares do pipe
 source("./R/pipeline/pipeline_helper.R") 
@@ -40,41 +38,44 @@ pairs %>%
 
 ##### calculos  
 
+x <- execCointAnalysis(dtset, 200)
+
+
 # calculos p/ 
-dtset %>% 
-  # modelo linear (a=f(b,t))
-  mutate( 
-    model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel, p=periods),
-    mdata = map(model, lmMetaData)
-  ) %>% 
-  # estrutura resultados da regressao
-  mutate(
-    model.coefs  = map(model,tidy),    # coeficientes obtidos do modelo
-    model.glance    = map(model, glance), # qualidade do fit
-    model.anova  = map(map(model,anova), tidy) # analise de variancia
-  ) %>% 
-  # dickeyFullerTest, half-life, channel size
-  mutate(
-    adf.test     = map(model,       dickeyFuller),
-    adf.results  = map(adf.test,    tidyADF),
-    flat.coefs   = map(model.coefs, flatCoefTidy),
-    flat.anova   = map(model.anova, flatTidy),
-    half.life    = map_dbl(model,   calcMeiaVida),
-    corr         = map(model,       correlationAnalysis)
-    # ,beta.rotation = map2(.x=prices.a, .y=prices.b, .f=calcBetaRotation, p=periods)
-  ) %>% 
-  # arima model
-  mutate(
-    arima        = map2(model, adf.results, fitARIMA),
-    arima.coefs  = map(arima,  tidy), 
-    arima.glance = map(arima,  glance),
-    arima.arma   = map(arima,  extractArma)
-  ) %>% 
-  unnest(mdata, adf.results, model.glance, flat.coefs) %>% 
-  unnest(corr, arima.glance, arima.arma, .sep=".") -> x
-
-
+# dtset %>% 
+#   # modelo linear (a=f(b,t))
+#   mutate( 
+#     model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel, p=periods),
+#     mdata = map(model, lmMetaData)
+#   ) %>% 
+#   # estrutura resultados da regressao
+#   mutate(
+#     model.coefs  = map(model,tidy),    # coeficientes obtidos do modelo
+#     model.glance    = map(model, glance), # qualidade do fit
+#     model.anova  = map(map(model,anova), tidy) # analise de variancia
+#   ) %>% 
+#   # dickeyFullerTest, half-life, channel size
+#   mutate(
+#     adf.test     = map(model,       dickeyFuller),
+#     adf.results  = map(adf.test,    tidyADF),
+#     flat.coefs   = map(model.coefs, flatCoefTidy),
+#     flat.anova   = map(model.anova, flatTidy),
+#     half.life    = map_dbl(model,   calcMeiaVida),
+#     corr         = map(model,       correlationAnalysis)
+#     # ,beta.rotation = map2(.x=prices.a, .y=prices.b, .f=calcBetaRotation, p=periods)
+#   ) %>% 
+#   # arima model
+#   mutate(
+#     arima        = map2(model, adf.results, fitARIMA),
+#     arima.coefs  = map(arima,  tidy), 
+#     arima.glance = map(arima,  glance),
+#     arima.arma   = map(arima,  extractArma)
+#   ) 
+  
+  
 x %>% 
+  unnest(mdata, adf.results, model.glance, flat.coefs) %>% 
+  unnest(corr, arima.glance, arima.arma, .sep=".") %>% 
   select( ticker.a, ticker.b, periods, adf, coint.level, coint.result,
           corr.z.fisher.conf.low, corr.z.fisher.estimate, corr.z.fisher.conf.high, 
           corr.z.fisher.eval.99,
