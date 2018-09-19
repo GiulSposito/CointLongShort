@@ -253,12 +253,13 @@ correlationAnalysis <- function(m){
   
 }
 
-execCointAnalysis <- function(dtset, periods){
-  # calculos p/ 
-  dtset %>% 
+execCointAnalysis <- function(.periods, .dtset){
+  # calculos p/ cointegracao
+  .dtset %>% 
     # modelo linear (a=f(b,t))
     mutate( 
-      model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel, p=periods),
+      model.periods = .periods,
+      model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel, p=.periods),
       mdata = map(model, lmMetaData)
     ) %>% 
     # estrutura resultados da regressao
@@ -283,6 +284,25 @@ execCointAnalysis <- function(dtset, periods){
       arima.coefs  = map(arima,  tidy), 
       arima.glance = map(arima,  glance),
       arima.arma   = map(arima,  extractArma)
+    ) -> coint.analysis
+  
+  # cria um sumario
+  coint.analysis %>% 
+    unnest(mdata, adf.results, model.glance, flat.coefs) %>% 
+    unnest(corr, arima.glance, arima.arma, .sep=".") %>% 
+    select( ticker.a, ticker.b, periods, adf, coint.level, coint.result,
+            corr.z.fisher.conf.low, corr.z.fisher.estimate, corr.z.fisher.conf.high, 
+            corr.z.fisher.eval.99,
+            half.life, spread.size, linear.estimate, angular.estimate, temporal.estimate,
+            ref.date.current, residual.current, z.score.current, sd,
+            ref.date.last, residual.last, z.score.last 
     ) %>% 
+    group_by(ticker.a, ticker.b) %>% 
+    nest() %>% 
+    set_names(c("ticker.a", "ticker.b", "coint.summary")) -> coint.summary
+  
+  # anexa o sumario e retorna
+  coint.analysis %>% 
+    left_join(coint.summary, by = c("ticker.a", "ticker.b")) %>% 
     return()
 }
