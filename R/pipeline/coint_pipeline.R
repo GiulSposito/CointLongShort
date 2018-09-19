@@ -38,52 +38,21 @@ pairs %>%
 
 ##### calculos  
 
-x <- execCointAnalysis(dtset, 200)
+period.ranges <- seq(100,240,20) %>% c(250)
 
+lapply(period.ranges[1:2],
+       execCointAnalysis,
+       .dtset=dtset) %>% 
+  bind_rows() -> y
 
-# calculos p/ 
-# dtset %>% 
-#   # modelo linear (a=f(b,t))
-#   mutate( 
-#     model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel, p=periods),
-#     mdata = map(model, lmMetaData)
-#   ) %>% 
-#   # estrutura resultados da regressao
-#   mutate(
-#     model.coefs  = map(model,tidy),    # coeficientes obtidos do modelo
-#     model.glance    = map(model, glance), # qualidade do fit
-#     model.anova  = map(map(model,anova), tidy) # analise de variancia
-#   ) %>% 
-#   # dickeyFullerTest, half-life, channel size
-#   mutate(
-#     adf.test     = map(model,       dickeyFuller),
-#     adf.results  = map(adf.test,    tidyADF),
-#     flat.coefs   = map(model.coefs, flatCoefTidy),
-#     flat.anova   = map(model.anova, flatTidy),
-#     half.life    = map_dbl(model,   calcMeiaVida),
-#     corr         = map(model,       correlationAnalysis)
-#     # ,beta.rotation = map2(.x=prices.a, .y=prices.b, .f=calcBetaRotation, p=periods)
-#   ) %>% 
-#   # arima model
-#   mutate(
-#     arima        = map2(model, adf.results, fitARIMA),
-#     arima.coefs  = map(arima,  tidy), 
-#     arima.glance = map(arima,  glance),
-#     arima.arma   = map(arima,  extractArma)
-#   ) 
+y %>% 
+  select(ticker.a, ticker.b, model.periods, coint.summary) %>% 
+  unnest( coint.summary ) %>% 
+  arrange(ticker.a, ticker.b, model.periods) %>% View()
   
-  
+x <- execCointAnalysis(dtset, 150)
+
 x %>% 
-  unnest(mdata, adf.results, model.glance, flat.coefs) %>% 
-  unnest(corr, arima.glance, arima.arma, .sep=".") %>% 
-  select( ticker.a, ticker.b, periods, adf, coint.level, coint.result,
-          corr.z.fisher.conf.low, corr.z.fisher.estimate, corr.z.fisher.conf.high, 
-          corr.z.fisher.eval.99,
-          half.life, spread.size, linear.estimate, angular.estimate, temporal.estimate,
-          ref.date.current, residual.current, z.score.current, sd,
-          ref.date.last, residual.last, z.score.last 
-          # ,beta.rotation.mu, beta.rotation.sd
-        ) %>% View()
+  select(-prices.a, -prices.b)
 
 
-View(x)
