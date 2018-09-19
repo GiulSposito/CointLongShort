@@ -103,7 +103,7 @@ ggplot(daily_data, aes(x=dteday)) +
 
 # First, we calculate seasonal component of the data using stl()
 
-count_ma <- ts(na.omit(daily_data$cnt_ma), frequency=1)
+count_ma <- ts(na.omit(daily_data$cnt_ma), frequency=30)
 decomp <- stl(count_ma, s.window="periodic")
 decomp2 <- decompose(count_ma)
 deseasonal_cnt <- seasadj(decomp)
@@ -178,6 +178,10 @@ Pacf(count_d1, main='PACF for Differenced Series')
 
 fit <- auto.arima(deseasonal_cnt, seasonal=FALSE)
 tsdisplay(residuals(fit),lag.max = 45, main="Arima (1,1,1)")
+
+fit1 <- auto.arima(count_ma, seasonal = T)
+tsdisplay(residuals(fit1),lag.max = 45, main="Arima (1,1,1)")
+
 
 # There is a clear pattern present in ACF/PACF and model residuals plots
 # repeating at lag 7. This suggests that our model may be better off with a

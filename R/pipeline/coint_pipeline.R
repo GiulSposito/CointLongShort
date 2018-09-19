@@ -63,7 +63,7 @@ dtset %>%
     corr = map(model, correlationAnalysis)
     # ,beta.rotation = map2(.x=prices.a, .y=prices.b, .f=calcBetaRotation, p=periods)
   ) %>% 
-  unnest(mdata, model.glance, flat.coefs, adf.results, corr, beta.rotation) -> x
+  unnest(mdata, model.glance, flat.coefs, adf.results, corr) -> x
 
 x %>% 
   select( ticker.a, ticker.b, periods, adf, coint.level, coint.result,
