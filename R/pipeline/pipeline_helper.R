@@ -20,19 +20,19 @@ getCandidatePairs <- function(){
 getPrices <- function(.pairs, .start.date, .end.date){
 
     # tickers to get data
-  tickers <- c(.pairs$ticker.a, .pairs$ticker.b) %>% # todos os ativos dos pares
+  .tickers <- c(.pairs$ticker.a, .pairs$ticker.b) %>% # todos os ativos dos pares
     unique() # nao repetido
   
   # obtem precos
-  prices <- BatchGetSymbols(
-    tickers = tickers,       # tickers da analise
-    first.date = start.date, # data de inicio
-    last.date =  end.date,   # data de fim
+  .prices <- BatchGetSymbols(
+    tickers = .tickers,       # tickers da analise
+    first.date = .start.date, # data de inicio
+    last.date =  .end.date,   # data de fim
     thresh.bad.data = 0.01   # considerar serie com pelo menos 99% de cobertura
   )
   
   # vamos tirar do test.cases tickers nao baixados
-  prices$df.control %>% 
+  .prices$df.control %>% 
     filter(download.status=="OK", threshold.decision=="KEEP") %>% 
     pull(ticker) %>% 
     as.character() -> valid.tickers
@@ -40,16 +40,16 @@ getPrices <- function(.pairs, .start.date, .end.date){
   # mantem somente casos de testes que tem dados
   .pairs %>%
     filter( ticker.a %in% valid.tickers,
-            ticker.b %in% valid.tickers ) -> valid.pairs
+            ticker.b %in% valid.tickers ) -> .valid.pairs
   
   # dando uma olhada no que está no price.adjusted
-  prices <- prices$df.tickers %>% 
+  .prices <- .prices$df.tickers %>% 
     as.tibble() %>% # please! 
     arrange(ref.date)
   
   # retorna tabela de preco
   list(
-    valid.pairs = valid.pairs,
-    price.table = prices
+    valid.pairs = .valid.pairs,
+    price.table = .prices
   ) %>% return()
 }

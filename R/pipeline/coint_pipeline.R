@@ -9,8 +9,8 @@ source("./R/pipeline/coint_library.R")
 ##### parametros de analise
 
 # faixa de tempo para range de dados
-end.date   <- ymd(20091231) # now()
-start.date <- end.date - years(2)
+end.date   <- now() - years(1) # now()
+start.date <- now() - years(2)
 periods    <- 100
 
 # obtem os pares a serem analisados
@@ -66,13 +66,115 @@ if (nrow(ops.candidatas)>0) {
          .dtset=teste.op.candidata) %>% 
     bind_rows() -> coint.table
   
+  # meata avaliacao da cointegracao
   coint.table %>% 
     group_by(ticker.a, ticker.b) %>% 
+    # tira as medias
     mutate_if(function(x) (is.numeric(x)|is.logical(x)), mean, na.rm=T) %>% 
     distinct() %>% 
     ungroup() %>% 
+    # so interessa alguns valroes
     select(
       ticker.a, ticker.b, 
       coint.level, coint.result, 
-      corr.z.fisher.eval.99) -> coint.result
+      corr.z.fisher.eval.99) %>% 
+    # filtra valores minimos de cointegracao e teste de fisher
+    filter( coint.result>=.75,
+            corr.z.fisher.eval.99>=.75 ) -> coint.result
 }
+
+# contem as cointegracoes de 100 periodos que estao trigadas
+ops.candidatas
+
+# tabela de analise de multiperiodo das operacoes trigadas
+coint.table
+
+# consolidado de "go" da analise de multiperiodo
+coint.result
+
+# monta a operacao
+coint.result %>% 
+  select(ticker.a, ticker.b) %>% 
+  left_join(dtset, by = c("ticker.a", "ticker.b")) %>% 
+  lapply(100,
+         execCointAnalysis,
+         .dtset=.) %>% 
+  bind_rows() %>% 
+  unnest(coint.summary) %>% 
+  mutate(
+    start.date = ref.date.current + 1,
+    end.date = ref.date.current + days(ceiling(half.life)),
+    duration = ceiling(half.life)
+  ) %>% 
+  select(
+    ticker.a,
+    ticker.b,
+    start.date,
+    duration,
+    end.date,
+    angular.estimate,
+    temporal.estimate,
+    linear.estimate,
+    model
+    # adf, 
+    # ref.date.current,
+    # z.score.current,
+    # residual.current,
+    # sd,
+    # half.life
+  ) -> triggers
+
+# obtem precos
+new.pairs <- triggers %>% select(ticker.a, ticker.b)
+new.price.data <- getPrices(.pairs = new.pairs, .start.date = min(triggers$start.date), .end.date = now())
+
+# atualiza pares candidatos válidos
+# e tabela de precos
+new.pairs <- new.price.data$valid.pairs
+new.prices <- new.price.data$price.table %>% 
+  as.tibble() %>% 
+  group_by(ticker) %>% 
+  arrange(ref.date) %>%
+  nest()
+
+# monta os cenarios de analise
+new.pairs %>%
+  inner_join( triggers ) %>% 
+  inner_join( new.prices %>% set_names(c("ticker.a","prices.a")), by = "ticker.a" ) %>% 
+  inner_join( new.prices %>% set_names(c("ticker.b","prices.b")), by = "ticker.b" ) -> backtest
+
+a <- backtest[1,]$prices.a[[1]]
+b <- backtest[1,]$prices.b[[1]]
+start.date <- backtest[1,]$start.date
+duration   <- backtest[1,]$duration
+mymodel      <- backtest[1,]$model[[1]]
+  
+a %>%
+  select(ref.date, price.a = price.adjusted) %>%
+  filter(ref.date >= start.date) %>% 
+  inner_join(b %>% select(ref.date, price.b = price.adjusted), by="ref.date") %>%
+  filter(complete.cases(.)) %>% 
+  arrange( ref.date ) %>% 
+  slice(1:(2*duration)) %>% 
+  mutate( price.a_hat = predict(mymodel, newdata=.),
+          residuals   = price.a - price.a_hat ) -> pred
+
+c(mymodel$residuals) %>% # , pred$residuals) %>% 
+  plot(type="l")
+
+class(model)
+
+?predict
+
+%>% 
+  mutate( price.a_hat = predict(model,.) )
+  
+
+  
+  mutate( price.a_hat = angular*price.b + temporal*ref.date + linear )
+
+
+backtest$prices.b[[1]] %>% 
+  filter(ref.date >= start.date) 
+
+
