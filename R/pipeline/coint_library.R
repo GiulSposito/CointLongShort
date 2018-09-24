@@ -341,3 +341,5 @@ execCointAnSimplified <- function(.periods, .dtset){
     ) %>% 
     return()
 }
+
+
