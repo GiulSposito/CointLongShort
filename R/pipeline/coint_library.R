@@ -290,7 +290,7 @@ execCointAnalysis <- function(.periods, .dtset){
   coint.analysis %>% 
     unnest(mdata, adf.results, model.glance, flat.coefs) %>% 
     unnest(corr, arima.glance, arima.arma, .sep=".") %>% 
-    select( ticker.a, ticker.b, periods, adf, coint.level, coint.result,
+    select( ticker.a, ticker.b, model.periods, periods, adf, coint.level, coint.result,
             corr.z.fisher.conf.low, corr.z.fisher.estimate, corr.z.fisher.conf.high, 
             corr.z.fisher.eval.99,
             half.life, spread.size, linear.estimate, angular.estimate, temporal.estimate,
@@ -304,5 +304,40 @@ execCointAnalysis <- function(.periods, .dtset){
   # anexa o sumario e retorna
   coint.analysis %>% 
     left_join(coint.summary, by = c("ticker.a", "ticker.b")) %>% 
+    return()
+}
+
+execCointAnSimplified <- function(.periods, .dtset){
+  # calculos p/ cointegracao
+  .dtset %>% 
+    # modelo linear (a=f(b,t))
+    mutate(
+      model.periods = .periods,
+      model = map2(.x=prices.a, .y=prices.b, .f=fitLinModel, p=.periods),
+      mdata = map(model, lmMetaData)
+    ) %>% 
+    # estrutura resultados da regressao
+    mutate(
+      model.coefs  = map(model,tidy)    # coeficientes obtidos do modelo
+    ) %>% 
+    # dickeyFullerTest, half-life, channel size
+    mutate(
+      adf.test     = map(model,       dickeyFuller),
+      adf.results  = map(adf.test,    tidyADF),
+      flat.coefs   = map(model.coefs, flatCoefTidy),
+      half.life    = map_dbl(model,   calcMeiaVida),
+      corr         = map(model,       correlationAnalysis)
+      # ,beta.rotation = map2(.x=prices.a, .y=prices.b, .f=calcBetaRotation, p=periods)
+    ) %>% 
+    # cria um sumario
+    unnest(mdata, adf.results, flat.coefs) %>% 
+    unnest(corr, .sep=".") %>% 
+    select( ticker.a, ticker.b, model.periods, periods, adf, coint.level, coint.result,
+            corr.z.fisher.conf.low, corr.z.fisher.estimate, corr.z.fisher.conf.high, 
+            corr.z.fisher.eval.99,
+            half.life, spread.size, linear.estimate, angular.estimate, temporal.estimate,
+            ref.date.current, residual.current, z.score.current, sd,
+            ref.date.last, residual.last, z.score.last 
+    ) %>% 
     return()
 }

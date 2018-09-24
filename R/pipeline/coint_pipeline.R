@@ -38,21 +38,44 @@ pairs %>%
 
 ##### calculos  
 
+coint.now <- execCointAnSimplified(100,dtset)
+
+coint.now %>%
+  filter(
+    coint.result == T,
+    corr.z.fisher.eval.99 == T,
+    abs(z.score.current) >= 2,
+    abs(z.score.last) < 2
+  ) -> ops.candidatas
+
+ops.candidatas %>% 
+  select(ticker.a, ticker.b) %>% 
+  left_join(dtset, by = c("ticker.a", "ticker.b")) -> teste.op.candidata
+  
 period.ranges <- seq(100,240,20) %>% c(250)
 
-lapply(period.ranges[1:2],
-       execCointAnalysis,
-       .dtset=dtset) %>% 
-  bind_rows() -> y
+lapply(period.ranges,
+       execCointAnSimplified,
+       .dtset=teste.op.candidata) %>% 
+  bind_rows() -> coint.table
 
-y %>% 
+coint.table %>% 
   select(ticker.a, ticker.b, model.periods, coint.summary) %>% 
   unnest( coint.summary ) %>% 
   arrange(ticker.a, ticker.b, model.periods) %>% View()
   
-x <- execCointAnalysis(dtset, 150)
 
-x %>% 
-  select(-prices.a, -prices.b)
+coint.table %>% 
+  filter( model.periods == 100 ) %>% 
+  pull(mdata) %>% 
+  .[[1]] %>% 
+  pull(z.scores) %>% 
+  .[[1]] %>% 
+  ggplot(aes(x=ref.date, y=z.score)) +
+  geom_line(size=1) +
+  geom_hline(yintercept = 2, color="red") +
+  geom_hline(yintercept = -2, color="red") +
+  theme_light()
 
 
+gg
