@@ -9,46 +9,68 @@ source("./R/pipeline/coint_library.R")
 ##### parametros de analise
 
 # faixa de tempo para range de dados
-end.date   <- now() - years(1) # now()
-start.date <- now() - years(2)
+data.end.date   <- now() - days(1) # now()
+data.start.date <- now() - years(2)
 periods    <- 100
 
 # obtem os pares a serem analisados
 pairs <- getCandidatePairs()
 
+# price.table
+price.data <- getPrices(pairs, data.start.date, data.end.date)
+
+valid.pairs <- price.data$valid.pairs
+price.table <- price.data$price.table %>% 
+  as.tibble() %>% 
+  arrange(ref.date)
+
+target.date <- now() - months(5)
+search.range <- 
+  days(seq(1,60)) + target.date
+  
+lapply(search.range,
+       searchOpCandidates,
+       .pairs=valid.pairs,
+       .price.table=price.table) -> coint.analysis
+
+coint.analysis %>% 
+  map("result") %>% 
+  bind_rows() %>% 
+  distinct() -> ops.candidatas
+
 ##### pre process
 
-# obtem precos
-price.data <- getPrices(pairs, start.date, end.date)
-
-# atualiza pares candidatos válidos
-# e tabela de precos
-pairs <- price.data$valid.pairs
-prices <- price.data$price.table %>% 
-  as.tibble() %>% 
-  group_by(ticker) %>% 
-  arrange(ref.date) %>%
-  nest()
-
-# monta os cenarios de analise
-pairs %>%
-  inner_join( prices %>% set_names(c("ticker.a","prices.a")), by = "ticker.a" ) %>% 
-  inner_join( prices %>% set_names(c("ticker.b","prices.b")), by = "ticker.b" ) %>% 
-  select(ticker.a, prices.a, ticker.b, prices.b) -> dtset
-
-##### calculos  
-
-# testa cointegracao 100 periodos
-coint.now <- execCointAnSimplified(100,dtset)
-
-# filtra operacoes candidatas
-coint.now %>%
-  filter(
-    coint.result == T,
-    corr.z.fisher.eval.99 == T,
-    abs(z.score.current) >= 2,
-    abs(z.score.last) < 2
-  ) -> ops.candidatas
+# # obtem precos
+# price.data <- getPrices(pairs, start.date, end.date)
+# 
+# # atualiza pares candidatos válidos
+# # e tabela de precos
+# pairs <- price.data$valid.pairs
+# prices <- price.data$price.table %>% 
+#   as.tibble() %>% 
+#   group_by(ticker) %>% 
+#   arrange(ref.date) %>%
+#   nest()
+# 
+# # monta os cenarios de analise
+# pairs %>%
+#   inner_join( prices %>% set_names(c("ticker.a","prices.a")), by = "ticker.a" ) %>% 
+#   inner_join( prices %>% set_names(c("ticker.b","prices.b")), by = "ticker.b" ) %>% 
+#   select(ticker.a, prices.a, ticker.b, prices.b) -> dtset
+# 
+# ##### calculos  
+# 
+# # testa cointegracao 100 periodos
+# coint.now <- execCointAnSimplified(100,dtset)
+# 
+# # filtra operacoes candidatas
+# coint.now %>%
+#   filter(
+#     coint.result == T,
+#     corr.z.fisher.eval.99 == T,
+#     abs(z.score.current) >= 2,
+#     abs(z.score.last) < 2
+#   ) -> ops.candidatas
 
 if (nrow(ops.candidatas)>0) {
 
@@ -126,7 +148,7 @@ coint.result %>%
 
 # obtem precos
 new.pairs <- triggers %>% select(ticker.a, ticker.b)
-new.price.data <- getPrices(.pairs = new.pairs, .start.date = min(triggers$start.date), .end.date = now())
+new.price.data <- getPrices(.pairs = new.pairs, .start.date = min(triggers$start.date), .end.date = now()-months(1))
 
 # atualiza pares candidatos válidos
 # e tabela de precos

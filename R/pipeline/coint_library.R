@@ -342,4 +342,45 @@ execCointAnSimplified <- function(.periods, .dtset){
     return()
 }
 
+searchOpCandidates <- function(.pairs, .last.date=NULL, .price.table){
 
+  # atualiza pares candidatos válidos
+  # e tabela de precos
+  if(!is.null(.last.date)) {
+    .price.table %>% filter(ref.date <= .last.date) -> pre.table
+  } else {
+    .price.table -> pre.table
+  } 
+  
+  pre.table %>% 
+    as.tibble() %>% 
+    group_by(ticker) %>% 
+    arrange(ref.date) %>%
+    nest() -> .prices
+  
+  # monta os cenarios de analise
+  .pairs %>%
+    inner_join( .prices %>% set_names(c("ticker.a","prices.a")), by = "ticker.a" ) %>% 
+    inner_join( .prices %>% set_names(c("ticker.b","prices.b")), by = "ticker.b" ) %>% 
+    select(ticker.a, prices.a, ticker.b, prices.b) -> dtset
+  
+  ##### calculos  
+  
+  # testa cointegracao 100 periodos
+  coint.now <- execCointAnSimplified(100,dtset)
+  
+  # filtra operacoes candidatas
+  coint.now %>%
+    filter(
+      coint.result == T,
+      corr.z.fisher.eval.99 == T,
+      abs(z.score.current) >= 2,
+      abs(z.score.last) < 2
+    ) -> ops.candidatas
+  
+  list(
+    result = ops.candidatas,
+    analysis = coint.now
+  ) %>% 
+    return()
+}
