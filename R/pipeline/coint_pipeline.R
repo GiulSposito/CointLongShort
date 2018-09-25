@@ -1,6 +1,7 @@
 # setup
 library(tidyverse)
 library(lubridate)
+library(parallel)
 
 # funcoes auxiliares do pipe
 source("./R/pipeline/pipeline_helper.R") 
@@ -28,10 +29,28 @@ target.date <- now() - months(5)
 search.range <- 
   days(seq(1,60)) + target.date
   
-lapply(search.range,
-       searchOpCandidates,
-       .pairs=valid.pairs,
-       .price.table=price.table) -> coint.analysis
+# parallel preparation
+cl <- makeCluster(4)
+clusterEvalQ(cl,
+             {
+               library(tidyverse)
+               library(lubridate)
+               source("./R/pipeline/coint_library.R")
+             })
+
+# execute in parallel
+parLapply(cl,search.range,
+          searchOpCandidates,
+          .pairs=valid.pairs,
+          .price.table=price.table) -> coint.analysis
+
+# stop clusters
+stopCluster(cl)
+
+# lapply(search.range,
+#        searchOpCandidates,
+#        .pairs=valid.pairs,
+#        .price.table=price.table) -> coint.analysis
 
 coint.analysis %>% 
   map("result") %>% 
